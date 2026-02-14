@@ -1,118 +1,155 @@
 "use client"
 
-import { FileText, Send, Calendar, TrendingUp, Clock } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Briefcase, MapPin, Building2, Users, Mail, Phone, Calendar, Award } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function EmployeeHome() {
-  const quickActions = [
-    {
-      title: "View My Contract",
-      description: "Access your employment agreement",
-      icon: FileText,
-      action: "View Contract"
-    },
-    {
-      title: "Submit Expense",
-      description: "Submit reimbursement requests",
-      icon: Send,
-      action: "Submit"
-    },
-    {
-      title: "Request Leave",
-      description: "Apply for time off",
-      icon: Calendar,
-      action: "Request"
-    }
+  const employeeInfo = {
+    name: "Alex Chan",
+    position: "Senior Product Designer",
+    department: "Design",
+    employeeId: "EMP-2024-0142",
+    email: "alex.chan@zerohr.com",
+    phone: "+60 12-345 6789",
+    location: "Kuala Lumpur, Malaysia",
+    startDate: "March 1, 2024",
+    reportingTo: "Head of Design",
+    employmentType: "Full-Time",
+  }
+
+  const jobScope = [
+    "Lead end-to-end product design for web and mobile applications",
+    "Create wireframes, prototypes, and high-fidelity UI mockups",
+    "Conduct user research and usability testing to inform design decisions",
+    "Collaborate with product managers and engineers to define requirements",
+    "Establish and maintain design systems and component libraries",
+    "Mentor junior designers and conduct design reviews",
+    "Present design concepts and rationale to stakeholders",
+    "Drive UX improvements based on analytics and user feedback",
   ]
 
-  const recentActivity = [
-    { action: "Leave request approved", time: "2 hours ago", status: "success" },
-    { action: "Expense claim submitted", time: "1 day ago", status: "pending" },
-    { action: "Contract viewed", time: "3 days ago", status: "info" },
-    { action: "Performance review completed", time: "1 week ago", status: "success" }
-  ]
-
-  const aiSuggestions = [
-    "Your Q1 performance review is due in 5 days",
-    "Consider reviewing your equity vesting schedule",
-    "3 team members on leave next week - plan accordingly"
+  const keyResponsibilities = [
+    {
+      area: "Product Design",
+      description: "Own the design process from concept to delivery for core product features",
+      icon: Briefcase,
+    },
+    {
+      area: "Design System",
+      description: "Maintain and evolve the company-wide design system and component library",
+      icon: Award,
+    },
+    {
+      area: "User Research",
+      description: "Plan and conduct user interviews, surveys, and usability tests",
+      icon: Users,
+    },
+    {
+      area: "Cross-functional Collaboration",
+      description: "Work closely with engineering, product, and marketing teams",
+      icon: Building2,
+    },
   ]
 
   return (
     <div className="p-8">
+      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Welcome back, Sarah</h1>
-        <p className="text-muted-foreground">{"Here's what's happening with your account today"}</p>
+        <h1 className="text-3xl font-bold mb-2">Employee Profile</h1>
+        <p className="text-muted-foreground">Your role information and job scope</p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {quickActions.map((item, index) => {
-          const Icon = item.icon
-          return (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
+      {/* Employee Info Card */}
+      <Card className="mb-8">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-6">
+            <div className="w-20 h-20 rounded-full bg-emerald-600 flex items-center justify-center text-2xl font-bold text-white shrink-0">
+              AC
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-1">{employeeInfo.name}</h2>
+              <p className="text-emerald-500 font-semibold text-lg mb-4">{employeeInfo.position}</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building2 className="h-4 w-4" />
+                  <span>{employeeInfo.department}</span>
                 </div>
-                <CardTitle className="text-lg">{item.title}</CardTitle>
-                <CardDescription>{item.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full">{item.action}</Button>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>{employeeInfo.location}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span>{employeeInfo.email}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                  <span>{employeeInfo.phone}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>Joined {employeeInfo.startDate}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span>Reports to {employeeInfo.reportingTo}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Briefcase className="h-4 w-4" />
+                  <span>{employeeInfo.employmentType}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* AI Suggestions */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Key Responsibilities */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <CardTitle>AI Suggestions</CardTitle>
-            </div>
-            <CardDescription>Personalized recommendations for you</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-emerald-500" />
+              Key Responsibilities
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {aiSuggestions.map((suggestion, index) => (
-              <div key={index} className="p-3 bg-secondary rounded-lg text-sm">
-                {suggestion}
-              </div>
-            ))}
+          <CardContent className="space-y-4">
+            {keyResponsibilities.map((item, index) => {
+              const Icon = item.icon
+              return (
+                <div key={index} className="flex items-start gap-4 p-4 rounded-lg bg-secondary/50">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0">
+                    <Icon className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm mb-1">{item.area}</h4>
+                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
+        {/* Job Scope */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <CardTitle>Recent Activity</CardTitle>
-            </div>
-            <CardDescription>Your latest actions and updates</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-emerald-500" />
+              Job Scope
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {recentActivity.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    item.status === 'success' ? 'bg-green-500' :
-                    item.status === 'pending' ? 'bg-yellow-500' :
-                    'bg-blue-500'
-                  }`} />
-                  <div>
-                    <p className="text-sm font-medium">{item.action}</p>
-                    <p className="text-xs text-muted-foreground">{item.time}</p>
+          <CardContent>
+            <ul className="space-y-3">
+              {jobScope.map((item, index) => (
+                <li key={index} className="flex items-start gap-3 text-sm">
+                  <div className="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-semibold text-emerald-500">{index + 1}</span>
                   </div>
-                </div>
-              </div>
-            ))}
+                  <span className="text-muted-foreground">{item}</span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       </div>

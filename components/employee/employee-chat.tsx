@@ -1,14 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { MessageSquare, Send, Bot, User } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { MessageSquare, Send, Bot, User, History, X } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function EmployeeChat() {
   const [message, setMessage] = useState("")
+  const [showHistory, setShowHistory] = useState(false)
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -39,7 +40,7 @@ export function EmployeeChat() {
 
   const handleSend = () => {
     if (!message.trim()) return
-    
+
     setMessages([...messages, {
       id: messages.length + 1,
       sender: "user",
@@ -50,29 +51,53 @@ export function EmployeeChat() {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Chat History Sidebar */}
-      <aside className="w-80 border-r bg-card p-6">
-        <h2 className="text-xl font-bold mb-6">Chat History</h2>
-        <div className="space-y-3">
-          {chatHistory.map((chat, index) => (
-            <Card key={index} className="hover:bg-secondary cursor-pointer transition-colors">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-sm mb-1">{chat.title}</h3>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{chat.date}</span>
-                  <span>{chat.messages} messages</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </aside>
+    <div className="flex h-full relative">
+      {/* Chat History Sidebar - Overlay */}
+      {showHistory && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setShowHistory(false)}
+          />
+          <aside className="absolute left-0 top-0 bottom-0 w-80 bg-card border-r z-50 shadow-2xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold">Chat History</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="h-[calc(100%-60px)]">
+              <div className="p-4 space-y-3">
+                {chatHistory.map((chat, index) => (
+                  <Card key={index} className="hover:bg-secondary cursor-pointer transition-colors">
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-sm mb-1">{chat.title}</h3>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{chat.date}</span>
+                        <span>{chat.messages} messages</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          </aside>
+        </>
+      )}
 
-      {/* Main Chat Area */}
+      {/* Main Chat Area - Full Width */}
       <div className="flex-1 flex flex-col">
         <div className="border-b p-6">
           <div className="flex items-center gap-3">
+            {/* Chat History Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowHistory(!showHistory)}
+              className="shrink-0"
+            >
+              <History className="h-5 w-5 text-muted-foreground" />
+            </Button>
             <div className="p-2 rounded-lg bg-primary/10">
               <MessageSquare className="h-6 w-6 text-primary" />
             </div>
@@ -91,9 +116,8 @@ export function EmployeeChat() {
                 key={msg.id}
                 className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`p-2 rounded-lg ${
-                  msg.sender === 'bot' ? 'bg-primary/10' : 'bg-secondary'
-                }`}>
+                <div className={`p-2 rounded-lg h-fit ${msg.sender === 'bot' ? 'bg-primary/10' : 'bg-secondary'
+                  }`}>
                   {msg.sender === 'bot' ? (
                     <Bot className="h-5 w-5 text-primary" />
                   ) : (
@@ -101,11 +125,10 @@ export function EmployeeChat() {
                   )}
                 </div>
                 <div className={`flex-1 ${msg.sender === 'user' ? 'text-right' : ''}`}>
-                  <div className={`inline-block p-4 rounded-lg max-w-lg ${
-                    msg.sender === 'bot' 
-                      ? 'bg-secondary text-foreground' 
-                      : 'bg-primary text-primary-foreground'
-                  }`}>
+                  <div className={`inline-block p-4 rounded-lg max-w-lg ${msg.sender === 'bot'
+                    ? 'bg-secondary text-foreground'
+                    : 'bg-primary text-primary-foreground'
+                    }`}>
                     <p className="text-sm leading-relaxed">{msg.content}</p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{msg.timestamp}</p>
