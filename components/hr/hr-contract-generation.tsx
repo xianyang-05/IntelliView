@@ -625,8 +625,9 @@ export function HrContractGeneration() {
   }
 
   const handleSendDashboard = () => {
+    // 1. Save Dashboard Notification (Legacy)
     const notification = {
-      id: Date.now(),
+      id: Math.random().toString(36).substr(2, 9),
       recipientId: selectedPerson?.id,
       recipientName: formData.name,
       documentType: selectedDocType,
@@ -635,10 +636,44 @@ export function HrContractGeneration() {
       date: new Date().toISOString(),
       read: false
     }
+
     const existingNotifications = JSON.parse(localStorage.getItem('dashboardNotifications') || '[]')
     existingNotifications.push(notification)
     localStorage.setItem('dashboardNotifications', JSON.stringify(existingNotifications))
-    alert('Notification sent to employee dashboard!')
+
+    // 2. Save Shared Notification (For Bell Icon)
+    const newSharedNotification = {
+      id: notification.id,
+      type: 'document',
+      title: 'New Document Received',
+      message: `HR has sent you a ${notification.documentTitle}.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      data: { documentId: notification.id }
+    }
+    const sharedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    sharedNotifications.push(newSharedNotification)
+    localStorage.setItem('notifications', JSON.stringify(sharedNotifications))
+
+    // Save full document for Employee View
+    if (generatedDocument) {
+      const newDoc = {
+        id: notification.id,
+        name: documentTypes.find(t => t.id === selectedDocType)?.label || 'Document',
+        version: 'v1.0',
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        type: selectedDocType === 'offer-letter' ? 'Offer Letter' : 'Contract',
+        status: 'Pending Signature',
+        statusColor: 'bg-yellow-500/20 text-yellow-400',
+        content: generatedDocument,
+        employeeName: formData.name
+      }
+      const existingDocs = JSON.parse(localStorage.getItem('employeeDocuments') || '[]')
+      existingDocs.push(newDoc)
+      localStorage.setItem('employeeDocuments', JSON.stringify(existingDocs))
+    }
+
+    alert('Document sent to employee dashboard!')
   }
 
   const suggestions = getSuggestions()

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Activity, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react"
 
 export function HrCompliance() {
@@ -15,6 +15,15 @@ export function HrCompliance() {
   const [selectedUpdate, setSelectedUpdate] = useState<any>(null)
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false)
 
+  // Auto-open first news item
+  useEffect(() => {
+    if (complianceUpdates.length > 0) {
+      setTimeout(() => {
+        handleOpenUpdate(complianceUpdates[0])
+      }, 500)
+    }
+  }, [])
+
   const handleOpenUpdate = (update: any) => {
     setSelectedUpdate(update)
     setIsUpdateModalOpen(true)
@@ -23,6 +32,24 @@ export function HrCompliance() {
   const handleInitiateRenewal = (item: any) => {
     setSelectedRenewal(item)
     setIsRenewalModalOpen(true)
+  }
+
+  const handleSendReminder = (item: any) => {
+    // Save Shared Notification
+    const newSharedNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'compliance_alert',
+      title: 'Compliance Reminder',
+      message: `Reminder: ${item.training} is due on ${item.deadline}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      data: { trainingId: item.id } // Assuming item has ID or we just use it for context
+    }
+    const sharedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    sharedNotifications.push(newSharedNotification)
+    localStorage.setItem('notifications', JSON.stringify(sharedNotifications))
+
+    alert(`Reminder sent to ${item.employee} for ${item.training}`)
   }
 
   const getPerformanceData = (employee: string) => {
@@ -122,11 +149,7 @@ export function HrCompliance() {
     }
   ]
 
-  const stats = [
-    { label: "Urgent Actions", value: "8", color: "text-red-600", bg: "bg-red-100" },
-    { label: "Upcoming Deadlines", value: "15", color: "text-yellow-600", bg: "bg-yellow-100" },
-    { label: "Compliant", value: "225", color: "text-green-600", bg: "bg-green-100" }
-  ]
+
 
   return (
     <div className="p-8">
@@ -135,19 +158,31 @@ export function HrCompliance() {
         <p className="text-muted-foreground">Monitor and manage compliance requirements</p>
       </div>
 
-      {/* Stats */}
+      {/* Compliance Updates (Moved to Top) */}
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Activity className="h-5 w-5 text-blue-600" />
+        Regulatory Updates & News
+      </h2>
       <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                  <p className={`text-4xl font-bold ${stat.color}`}>{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-xl ${stat.bg}`}>
-                  <Shield className={`h-6 w-6 ${stat.color}`} />
-                </div>
+        {complianceUpdates.map((update, index) => (
+          <Card key={index} className="cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group" onClick={() => handleOpenUpdate(update)}>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-start mb-2">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{update.source}</Badge>
+                <span className="text-xs text-muted-foreground">{update.date}</span>
+              </div>
+              <CardTitle className="text-lg leading-tight group-hover:text-blue-700 transition-colors">{update.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{update.summary}</p>
+              <div className="flex items-center gap-2 mt-auto">
+                <Badge variant="secondary" className={
+                  update.impact === 'High' ? 'bg-red-100 text-red-700 hover:bg-red-200' :
+                    update.impact === 'Medium' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' :
+                      'bg-green-100 text-green-700 hover:bg-green-200'
+                }>
+                  {update.impact} Impact
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -237,7 +272,7 @@ export function HrCompliance() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-4">
-                  <Button size="sm" className="flex-1">Send Reminder</Button>
+                  <Button size="sm" className="flex-1" onClick={() => handleSendReminder(item)}>Send Reminder</Button>
                   <Button size="sm" variant="outline">View Training</Button>
                 </div>
               </CardContent>
@@ -246,43 +281,7 @@ export function HrCompliance() {
         </CardContent>
       </Card>
 
-      {/* Compliance Updates */}
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Activity className="h-5 w-5 text-blue-600" />
-        Regulatory Updates & News
-      </h2>
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {complianceUpdates.map((update, index) => (
-          <Card key={index} className="cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group overflow-hidden" onClick={() => handleOpenUpdate(update)}>
-            <div className="h-32 w-full overflow-hidden">
-              <img
-                src={update.image || "/placeholder.jpg"}
-                alt={update.title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-            </div>
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-start mb-2">
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{update.source}</Badge>
-                <span className="text-xs text-muted-foreground">{update.date}</span>
-              </div>
-              <CardTitle className="text-lg leading-tight group-hover:text-blue-700 transition-colors">{update.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{update.summary}</p>
-              <div className="flex items-center gap-2 mt-auto">
-                <Badge variant="secondary" className={
-                  update.impact === 'High' ? 'bg-red-100 text-red-700 hover:bg-red-200' :
-                    update.impact === 'Medium' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' :
-                      'bg-green-100 text-green-700 hover:bg-green-200'
-                }>
-                  {update.impact} Impact
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
       <Dialog open={isRenewalModalOpen} onOpenChange={setIsRenewalModalOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>

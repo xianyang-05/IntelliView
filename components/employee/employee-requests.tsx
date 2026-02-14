@@ -10,11 +10,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { useRef } from "react"
-import { Loader2, FileText, X } from "lucide-react"
+import { useRef, useEffect } from "react"
+import { Loader2, FileText, X, MessageSquare, Send } from "lucide-react"
 
 export function EmployeeRequests() {
-  const [currentView, setCurrentView] = useState<"main" | "leave" | "expense">("main")
+  const [currentView, setCurrentView] = useState<"main" | "leave" | "expense" | "action">("main")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [extractionStatus, setExtractionStatus] = useState<"idle" | "extracting" | "success">("idle")
   const [expenseForm, setExpenseForm] = useState({
@@ -59,32 +59,71 @@ export function EmployeeRequests() {
   const [calendarMonth, setCalendarMonth] = useState(1) // 0=Jan, 1=Feb
   const [calendarYear] = useState(2026)
 
-  const activeRequests = [
-    {
-      type: "Leave Request",
-      status: "pending",
-      description: "Annual Leave - 5 days",
-      submittedDate: "Submitted Feb 1, 2024",
-      steps: [
-        { label: "Submitted", status: "completed" },
-        { label: "Manager Review", status: "current" },
-        { label: "HR Approval", status: "pending" },
-        { label: "Completed", status: "pending" }
-      ]
-    },
-    {
-      type: "Expense Claim",
-      status: "pending",
-      description: "Team Lunch - Nando's",
-      submittedDate: "Submitted Today",
-      steps: [
-        { label: "Submitted", status: "completed" },
-        { label: "Manager Review", status: "current" },
-        { label: "HR Approval", status: "pending" },
-        { label: "Paid", status: "pending" }
-      ]
+  const [requests, setRequests] = useState<any[]>([])
+  const [actionRequiredCount, setActionRequiredCount] = useState(0)
+  const [selectedActionRequest, setSelectedActionRequest] = useState<any>(null)
+  const [responseText, setResponseText] = useState("")
+
+  useEffect(() => {
+    const loadRequests = () => {
+      // Load from shared storage
+      const stored = localStorage.getItem('workflowRequests')
+      if (stored) {
+        const allRequests = JSON.parse(stored)
+        // Filter for this employee (simulated as current user seeing all for demo, or filter by name if we had auth context)
+        // For demo, we'll show all requests that match a "current user" or just all
+        setRequests(allRequests)
+
+        const actions = allRequests.filter((r: any) => r.status === 'info_requested')
+        setActionRequiredCount(actions.length)
+      }
     }
-  ]
+    loadRequests()
+    const interval = setInterval(loadRequests, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleSubmitResponse = () => {
+    if (!selectedActionRequest) return
+
+    const updatedMessages = [
+      ...(selectedActionRequest.messages || []),
+      { sender: "Employee", message: responseText || "Uploaded document.", timestamp: new Date().toISOString() }
+    ]
+
+    const updatedRequest = {
+      ...selectedActionRequest,
+      status: 'info_submitted',
+      messages: updatedMessages
+    }
+
+    // Update localStorage
+    const stored = JSON.parse(localStorage.getItem('workflowRequests') || '[]')
+    const updatedList = stored.map((r: any) => r.id === updatedRequest.id ? updatedRequest : r)
+    localStorage.setItem('workflowRequests', JSON.stringify(updatedList))
+
+    // Save Shared Notification for HR
+    const newSharedNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'info_submitted',
+      title: 'Information Submitted',
+      message: `Employee submitted info for ${selectedActionRequest.type}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      data: { requestId: selectedActionRequest.id }
+    }
+    const sharedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    sharedNotifications.push(newSharedNotification)
+    localStorage.setItem('notifications', JSON.stringify(sharedNotifications))
+
+    // Reset UI
+    setRequests(updatedList)
+    setSelectedActionRequest(null)
+    setResponseText("")
+    setUploadedFile(null)
+    setCurrentView("main")
+    alert("Response sent to HR.")
+  }
 
   const leaveBalances = [
     { type: "Annual Leave", days: 12, color: "bg-yellow-400", icon: <Sun className="h-4 w-4 text-yellow-400" /> },
@@ -168,6 +207,107 @@ export function EmployeeRequests() {
     }
 
     return cells
+  }
+
+  // Response View
+  if (currentView === "action" && selectedActionRequest) {
+    const hrMessage = selectedActionRequest.messages?.find((m: any) => m.sender === 'HR')?.message
+
+    return (
+      <div className="p-8">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" size="icon" onClick={() => setCurrentView("main")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              Respond to Request
+              <Badge variant="destructive">Action Required</Badge>
+            </h1>
+            <p className="text-sm text-muted-foreground">HR requires additional information for your request</p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8">
+          {/* HR Message Card */}
+          <Card className="border-blue-200 bg-blue-50/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700">
+                <MessageSquare className="h-5 w-5" />
+                HR Request
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-medium mb-2">Message from HR:</p>
+              <div className="p-4 bg-white rounded-lg border border-blue-100 text-sm leading-relaxed">
+                {hrMessage || "Please provide additional details."}
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span>Requested recently</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Response Form */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Your Response
+                </CardTitle>
+                <CardDescription>Provide text details or upload documents</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Response Message</Label>
+                  <Textarea
+                    placeholder="Type your response here..."
+                    rows={4}
+                    value={responseText}
+                    onChange={(e) => setResponseText(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Attachment (Optional)</Label>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-emerald-500/50 transition-colors cursor-pointer bg-secondary/20"
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+                    />
+                    {uploadedFile ? (
+                      <div className="flex items-center justify-center gap-2 text-emerald-600">
+                        <FileText className="h-5 w-5" />
+                        <span className="text-sm font-medium">{uploadedFile.name}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Click to upload document</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button variant="outline" onClick={() => setCurrentView("main")}>Cancel</Button>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmitResponse}>
+                    Submit Response
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Submit Expense View
@@ -735,21 +875,31 @@ export function EmployeeRequests() {
           </CardContent>
         </Card>
 
-        <Card className="border-red-500/20 hover:shadow-lg transition-all cursor-pointer">
+        <Card className={`${actionRequiredCount > 0 ? 'border-red-500/50 bg-red-500/5' : ''} transition-all cursor-pointer`} onClick={() => {
+          if (actionRequiredCount > 0) {
+            const actionItem = requests.find(r => r.status === 'info_requested')
+            if (actionItem) {
+              setSelectedActionRequest(actionItem)
+              setCurrentView('action')
+            }
+          }
+        }}>
           <CardContent className="flex items-center gap-4 p-5">
-            <div className="p-3 rounded-lg bg-red-500/10">
-              <AlertCircle className="h-5 w-5 text-red-400" />
+            <div className={`p-3 rounded-lg ${actionRequiredCount > 0 ? 'bg-red-500/10' : 'bg-secondary'}`}>
+              <AlertCircle className={`h-5 w-5 ${actionRequiredCount > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-red-400">Action Required</h3>
-              <p className="text-xs text-muted-foreground">2 New Messages from HR</p>
+              <h3 className={`font-semibold text-sm ${actionRequiredCount > 0 ? 'text-red-600' : ''}`}>Action Required</h3>
+              <p className="text-xs text-muted-foreground">{actionRequiredCount} Requests Pending</p>
             </div>
-            <div className="ml-auto w-2 h-2 rounded-full bg-red-500" />
+            {actionRequiredCount > 0 && (
+              <div className="ml-auto w-2 h-2 rounded-full bg-red-500" />
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Active Requests */}
+      {/* Active Requests List */}
       <div className="mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5 text-muted-foreground" />
@@ -758,46 +908,35 @@ export function EmployeeRequests() {
       </div>
 
       <div className="space-y-4">
-        {activeRequests.map((request, index) => (
+        {(requests.length > 0 ? requests.filter(r => r.status !== 'info_submitted') : []).map((request: any, index: number) => (
           <Card key={index}>
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold">{request.type}</h3>
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-600">
-                      {request.status}
-                    </span>
+                    <Badge variant={
+                      request.status === 'approved' ? 'default' :
+                        request.status === 'info_requested' ? 'destructive' :
+                          'secondary'
+                    }>
+                      {request.status === 'info_requested' ? 'Action Required' :
+                        request.status === 'info_submitted' ? 'Under Review' :
+                          request.status}
+                    </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{request.description}</p>
+                  <p className="text-sm text-muted-foreground">{request.description || request.reason}</p>
                 </div>
-                <span className="text-sm text-muted-foreground">{request.submittedDate}</span>
+                <span className="text-sm text-muted-foreground">{request.date || request.dates}</span>
               </div>
 
-              {/* Horizontal Step Tracker */}
-              <div className="flex items-center">
-                {request.steps.map((step, stepIndex) => (
-                  <div key={stepIndex} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center flex-1">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mb-2 ${step.status === "completed" ? "bg-emerald-500" :
-                        step.status === "current" ? "bg-yellow-500" :
-                          "bg-muted"
-                        }`}>
-                        {step.status === "completed" ? (
-                          <Check className="h-3 w-3 text-white" />
-                        ) : (
-                          <span className="text-xs text-white font-medium">{stepIndex + 1}</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground text-center">{step.label}</span>
-                    </div>
-                    {stepIndex < request.steps.length - 1 && (
-                      <div className={`h-0.5 flex-1 -mt-5 mx-1 ${step.status === "completed" ? "bg-emerald-500" : "bg-muted"
-                        }`} />
-                    )}
-                  </div>
-                ))}
-              </div>
+              {/* Messages Preview if any */}
+              {request.messages && request.messages.length > 0 && (
+                <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm border-l-2 border-primary">
+                  <p className="font-semibold text-xs text-primary mb-1">Latest Update:</p>
+                  <p className="text-muted-foreground line-clamp-1">{request.messages[request.messages.length - 1].message}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
