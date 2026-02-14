@@ -82,7 +82,7 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
   // EFFECT: Handle Highlighting (Now handled inside ContractContent, but we still need to open the right contract)
   useEffect(() => {
     if (highlight?.section_id) {
-      setViewingContract("Employment Contract")
+      setViewingContract("c1")
     }
   }, [highlight])
 
@@ -136,7 +136,7 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
 
       // Store signature temporarily in the contract object
       setContractsList(prev => prev.map(c => {
-        if (c.name === viewingContract) {
+        if (c.id === viewingContract) {
           return { ...c, tempSignature: dataUrl }
         }
         return c
@@ -148,12 +148,12 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
 
   const handleFinalizeContract = () => {
     if (!viewingContract) return
-    const contract = contractsList.find(c => c.name === viewingContract)
+    const contract = contractsList.find(c => c.id === viewingContract)
     if (!contract?.tempSignature) return
 
     // Finalize contract status and move temp signature to permanent
     setContractsList(prev => prev.map(c => {
-      if (c.name === viewingContract) {
+      if (c.id === viewingContract) {
         return {
           ...c,
           status: "Signed",
@@ -168,12 +168,12 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
     // Update history
     const now = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     setHistoryList(prev => [
-      { action: `${viewingContract} Signed`, date: now, type: "Contract" },
+      { action: `${contract.name} Signed`, date: now, type: "Contract" },
       ...prev
     ])
 
     toast.success("Contract signed successfully", {
-      description: `${viewingContract} status updated to Signed.`
+      description: `${contract.name} status updated to Signed.`
     })
 
     setViewingContract(null)
@@ -215,16 +215,84 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
     { action: "Promotion Letter Issued", date: "Jul 1, 2023", type: "Contract" }
   ])
 
-  const aiMessages = [
+  // AI Contract Assistant state
+  const [aiChatMessages, setAiChatMessages] = useState<{ sender: string; content: string }[]>([
     {
       sender: "bot",
       content: "Hi! I've analyzed the Employment Contract. Here's a quick summary:\n\n• Salary Increase: Base salary up to $145k\n• Bonus: 15% performance bonus target\n• Equity: 1,200 new stock options\n• Remote Work: 3 days/week allowed\n\nDo you have any specific questions about these clauses?"
     }
+  ])
+  const [aiInput, setAiInput] = useState("")
+  const [showFaqButtons, setShowFaqButtons] = useState(true)
+  const aiScrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when new messages added
+  useEffect(() => {
+    if (aiScrollRef.current) {
+      aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight
+    }
+  }, [aiChatMessages])
+
+  const faqItems = [
+    {
+      question: "What is my new salary?",
+      answer: "According to **Section 2 (Compensation)** of the amendment:\n\n**a) Base Salary:** Your annual base salary will be increased to **$145,000 per annum**, payable in accordance with the Company's standard payroll practices.\n\n**b) Performance Bonus:** You will be eligible for an annual performance bonus of up to **15%** of your base salary, subject to achievement of individual and company performance targets."
+    },
+    {
+      question: "How many stock options do I get?",
+      answer: "According to **Section 3 (Equity)** of the amendment:\n\nYou will be granted **1,200 new stock options** under the Company's Employee Stock Option Plan, vesting over **3 years** with **quarterly vesting**.\n\nThis is in addition to any existing equity grants you may hold."
+    },
+    {
+      question: "What is the remote work policy?",
+      answer: "According to **Section 4 (Remote Work)** of the amendment:\n\nYou are approved to work remotely up to **3 days per week**, subject to the Company's Remote Work Policy.\n\nThis means you're expected to be in-office for a minimum of 2 days per week."
+    },
+    {
+      question: "What happens to my other terms?",
+      answer: "According to **Section 5 (Other Terms)** of the amendment:\n\nAll other terms and conditions of your employment **remain unchanged** and continue to apply. This includes your existing benefits, leave entitlements, and any previously signed agreements like your NDA."
+    },
+    {
+      question: "When does this take effect?",
+      answer: "The amendment is effective from **March 1, 2026**, as stated in the introduction of the offer letter.\n\nThe document was issued on **February 7, 2026**, giving you time to review and sign before the effective date."
+    }
   ]
+
+  const handleFaqClick = (faq: { question: string; answer: string }) => {
+    setShowFaqButtons(false)
+    setAiChatMessages(prev => [
+      ...prev,
+      { sender: "user", content: faq.question },
+      { sender: "bot", content: faq.answer }
+    ])
+  }
+
+  const handleAiInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!aiInput.trim()) return
+    const question = aiInput.trim()
+    setAiInput("")
+    setShowFaqButtons(false)
+
+    // Check if it matches a FAQ
+    const matchedFaq = faqItems.find(f =>
+      f.question.toLowerCase().includes(question.toLowerCase()) ||
+      question.toLowerCase().includes(f.question.toLowerCase().replace("?", ""))
+    )
+
+    setAiChatMessages(prev => [
+      ...prev,
+      { sender: "user", content: question },
+      {
+        sender: "bot",
+        content: matchedFaq
+          ? matchedFaq.answer
+          : "I can help you understand the clauses in this contract. Try asking about your **salary**, **stock options**, **remote work policy**, or **effective date**."
+      }
+    ])
+  }
 
   // Contract Viewer
   if (viewingContract) {
-    const contract = contractsList.find(c => c.name === viewingContract)
+    const contract = contractsList.find(c => c.id === viewingContract)
     return (
       <div className="p-8">
         <div className="flex items-center justify-between mb-6">
@@ -303,22 +371,59 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ScrollArea className="flex-1 mb-4">
-                  <div className="space-y-4">
-                    {aiMessages.map((msg, index) => (
-                      <div key={index} className="p-4 rounded-lg bg-secondary/50">
-                        <p className="text-sm leading-relaxed whitespace-pre-line">{msg.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="mt-auto">
-                  <Input
-                    placeholder="Ask about a clause..."
-                    className="bg-secondary border-border"
-                  />
+              <CardContent className="flex-1 flex flex-col overflow-hidden">
+                <div ref={aiScrollRef} className="flex-1 overflow-y-auto mb-4 space-y-3 pr-1">
+                  {aiChatMessages.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "p-3 rounded-lg text-sm leading-relaxed",
+                        msg.sender === "user"
+                          ? "bg-primary text-primary-foreground ml-6"
+                          : "bg-secondary/50 mr-2"
+                      )}
+                    >
+                      <p className="whitespace-pre-line"
+                        dangerouslySetInnerHTML={{
+                          __html: msg.content
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        }}
+                      />
+                    </div>
+                  ))}
+
+                  {/* FAQ Buttons */}
+                  {showFaqButtons && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
+                        Frequently Asked
+                      </p>
+                      {faqItems.map((faq, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleFaqClick(faq)}
+                          className="w-full text-left px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-primary/5 hover:border-primary/30 transition-all text-sm text-foreground/80 hover:text-foreground group"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-primary/60 group-hover:text-primary text-xs">▸</span>
+                            {faq.question}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                <form onSubmit={handleAiInputSubmit} className="mt-auto flex gap-2">
+                  <Input
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    placeholder="Ask about a clause..."
+                    className="bg-secondary border-border flex-1"
+                  />
+                  <Button type="submit" size="icon" variant="ghost" className="shrink-0">
+                    <Sparkles className="h-4 w-4 text-emerald-500" />
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </div>
@@ -410,7 +515,7 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => setViewingContract(contract.name)}
+                    onClick={() => setViewingContract(contract.id)}
                   >
                     <Eye className="h-4 w-4" />
                     View

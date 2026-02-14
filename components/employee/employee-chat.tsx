@@ -21,7 +21,7 @@ interface ChatMessage {
 
 const QUICK_SUGGESTIONS = [
   { label: "🏖️ Leave Balance", query: "What is my current leave balance?", icon: CalendarDays },
-  { label: "🏠 Remote Work Policy", query: "What is the remote work policy?", icon: Globe },
+  { label: "📈 What is my equity?", query: "What is my equity?", icon: Globe },
   { label: "💰 Salary & Deductions", query: "Show me my salary breakdown and deductions", icon: Briefcase },
   { label: "🧾 Expense Claims", query: "How do I submit an expense claim?", icon: Receipt },
   { label: "📋 Benefits Overview", query: "What employee benefits are available?", icon: FileText },
@@ -97,7 +97,7 @@ export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatPr
         body: JSON.stringify({
           message: userMessage,
           model: "claude-sonnet-4",
-          user_email: userEmail || "alex.chen@zerohr.com",
+          user_email: userEmail || "alex.chan@zerohr.com",
           user_role: userRole || "employee",
           history: history
         })

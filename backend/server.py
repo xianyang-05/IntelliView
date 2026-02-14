@@ -122,9 +122,32 @@ def get_rag_context(query: str, n_results: int = 5) -> tuple[str, list[str]]:
 def get_employee_by_email(email: str) -> dict | None:
     """Look up an employee by email from the employees table."""
     try:
+        print(f"🔍 Looking up employee with email: '{email}'")
         response = supabase.table("employees").select("*").eq("email", email).execute()
         if response.data:
+            print(f"✅ Found employee: {response.data[0].get('first_name')} {response.data[0].get('last_name')}")
             return response.data[0]
+
+        # Try case-insensitive search
+        response2 = supabase.table("employees").select("*").ilike("email", email).execute()
+        if response2.data:
+            print(f"✅ Found via ilike: {response2.data[0].get('first_name')} {response2.data[0].get('last_name')}")
+            return response2.data[0]
+
+        # Demo fallback: try alex.chan@zerohr.com first, then first employee
+        print(f"⚠️  No employee found for '{email}'. Trying demo fallback...")
+        alex = supabase.table("employees").select("*").ilike("email", "%alex%chan%").execute()
+        if alex.data:
+            print(f"✅ Demo fallback: using {alex.data[0].get('first_name')} {alex.data[0].get('last_name')}")
+            return alex.data[0]
+
+        # Last resort: use the first employee in the table
+        first = supabase.table("employees").select("*").limit(1).execute()
+        if first.data:
+            print(f"✅ Last-resort fallback: using {first.data[0].get('first_name')} {first.data[0].get('last_name')}")
+            return first.data[0]
+
+        print("❌ No employees found in the database at all!")
     except Exception as e:
         print(f"⚠️  Employee lookup error: {e}")
     return None
@@ -720,6 +743,9 @@ async def chat(request: ChatRequest):
                 request.user_role,
                 request.message,
             )
+        print(f"📊 Employee context found: {len(employee_context)} chars | RAG context: {len(rag_context)} chars")
+        if employee_context:
+            print(f"📊 Employee context preview: {employee_context[:200]}...")
         
         # 3. Build role-aware system prompt
         system_prompt = build_system_prompt(

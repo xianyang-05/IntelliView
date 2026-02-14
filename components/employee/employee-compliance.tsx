@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, CheckCircle2, Clock, Globe, Shield, Stethoscope, ArrowRight, X, Upload, Download, Sparkles } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clock, Globe, Shield, Stethoscope, ArrowRight, X, Upload, Download, Sparkles, Check, FileText, Loader2 } from "lucide-react"
+import { useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,20 @@ type ModalType = "visa" | "training" | "appointment" | null
 
 export function EmployeeCompliance() {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadedFile(file)
+    }
+  }
+
+  const removeFile = () => {
+    setUploadedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
 
   const stats = [
     { label: "Active Alerts", value: 3, icon: <AlertTriangle className="h-5 w-5 text-orange-500" />, color: "text-red-500" },
@@ -74,6 +89,11 @@ export function EmployeeCompliance() {
         docSubtitle: "Immigration Act (Chapter 133)",
         formLabel: "FORM 14",
         aiTip: "Start renewal now. Processing typically takes 3-4 weeks.",
+        checklist: [
+          { label: "Passport validity > 6 months", status: "valid" },
+          { label: "Recent passport-sized photo (white background)", status: "valid" },
+          { label: "Form 14 signed by both parties", status: uploadedFile ? "valid" : "pending" }
+        ]
       },
       training: {
         title: "Safety Training Renewal",
@@ -84,6 +104,11 @@ export function EmployeeCompliance() {
         docSubtitle: "This certifies that",
         formLabel: "",
         aiTip: "Schedule a refresher course. Available slots open for next week.",
+        checklist: [
+          { label: "Certificate from accredited provider", status: "valid" },
+          { label: "Completion date within 6 months", status: "valid" },
+          { label: "Employee ID matches", status: uploadedFile ? "valid" : "pending" }
+        ]
       },
       appointment: {
         title: "Medical Certificate Renewal",
@@ -94,8 +119,14 @@ export function EmployeeCompliance() {
         docSubtitle: "This certifies that the employee",
         formLabel: "",
         aiTip: "Book your annual health check. Partner clinic has slots available.",
+        checklist: [
+          { label: "Signed by licensed physician", status: "valid" },
+          { label: "Tests completed within 30 days", status: "valid" },
+          { label: "Company stamp present", status: uploadedFile ? "valid" : "pending" }
+        ]
       }
     }
+
 
     const config = modalConfig[activeModal]
 
@@ -192,13 +223,43 @@ export function EmployeeCompliance() {
                       <h3 className="font-semibold">Upload Supporting Documents</h3>
                       <span className="text-xs text-muted-foreground">PDF, JPG, PNG (Max 5MB)</span>
                     </div>
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
-                        <Upload className="h-5 w-5 text-emerald-500" />
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      accept=".pdf,.jpg,.png,.jpeg"
+                    />
+
+                    {uploadedFile ? (
+                      <div className="border rounded-lg p-4 flex items-center gap-4 bg-muted/20">
+                        <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <FileText className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{uploadedFile.name}</p>
+                          <p className="text-xs text-muted-foreground">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                          <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
+                            <Check className="h-3 w-3" /> Ready for submission
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={removeFile}>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <p className="text-sm font-medium">Click to upload files</p>
-                      <p className="text-xs text-muted-foreground">or drag and drop here</p>
-                    </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
+                          <Upload className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <p className="text-sm font-medium">Click to upload files</p>
+                        <p className="text-xs text-muted-foreground">or drag and drop here</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </ScrollArea>
@@ -222,49 +283,171 @@ export function EmployeeCompliance() {
                       <button className="text-xs border rounded-full px-3 py-1 text-muted-foreground hover:bg-secondary">Preview Mode</button>
                     </div>
 
-                    {/* Document Preview */}
-                    <div className="border rounded-lg overflow-hidden bg-white text-black">
-                      <div className="p-6 text-center space-y-2">
-                        {isVisa ? (
-                          <>
-                            <div className="flex justify-end">
-                              <span className="text-xs border px-2 py-0.5">FORM 14</span>
-                            </div>
-                            <h3 className="font-bold text-lg">APPLICATION FOR EXTENSION OF VISIT PASS</h3>
-                            <p className="text-sm italic text-gray-600">Immigration Act (Chapter 133)</p>
-                            <div className="border-t mt-4 pt-4 text-left">
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    {/* Document Preview & Full Content */}
+                    <div className="border rounded-lg overflow-hidden bg-white text-black shadow-sm relative">
+                      <ScrollArea className="h-[300px] w-full">
+                        <div className="p-8 space-y-6">
+                          {isVisa ? (
+                            <>
+                              <div className="flex justify-between items-start border-b-2 border-black pb-4">
                                 <div>
-                                  <p className="text-xs text-gray-500">PASSPORT NO</p>
-                                  <p className="font-bold">E1234567X</p>
+                                  <h3 className="font-bold text-xl">REPUBLIC OF SINGAPORE</h3>
+                                  <p className="text-sm font-serif">IMMIGRATION & CHECKPOINTS AUTHORITY</p>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-gray-500">FIN / NRIC</p>
-                                  <p className="font-bold">G1234567Z</p>
+                                <div className="border-2 border-black px-2 py-1 text-xs font-bold">
+                                  FORM 14
                                 </div>
                               </div>
-                              <p className="text-xs font-bold mt-4 border-t pt-2">PART A: PARTICULARS OF APPLICANT</p>
+
+                              <div className="text-center py-2">
+                                <h2 className="font-bold text-lg underline uppercase">Application for Extension of Visit Pass</h2>
+                                <p className="text-xs italic">Regulation 12 of the Immigration Regulations</p>
+                              </div>
+
+                              <div className="space-y-4 text-xs">
+                                <p className="font-bold border-b border-black pb-1">PART A: PARTICULARS OF APPLICANT</p>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="font-bold">Name</p>
+                                    <p className="border-b border-dotted border-black">ALEX CHEN</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">Sex</p>
+                                    <p className="border-b border-dotted border-black">MALE</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">Date of Birth</p>
+                                    <p className="border-b border-dotted border-black">12/05/1990</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">Nationality</p>
+                                    <p className="border-b border-dotted border-black">MALAYSIAN</p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="font-bold">Travel Document No.</p>
+                                    <p className="border-b border-dotted border-black">E1234567X</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">Expiry Date</p>
+                                    <p className="border-b border-dotted border-black">15/04/2030</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 text-xs pt-4">
+                                <p className="font-bold border-b border-black pb-1">PART B: DECLARATION</p>
+                                <p>I hereby declare that all the particulars furnished by me in this application are true and correct.</p>
+                                <div className="h-16 border-b border-black mt-8 flex items-end justify-between">
+                                  <span>Signature of Applicant</span>
+                                  <span>Date: 14/02/2026</span>
+                                </div>
+                              </div>
+                            </>
+                          ) : isTraining ? (
+                            <div className="text-center border-8 border-double border-amber-900/20 p-6 h-full min-h-[400px]">
+                              <div className="mb-8">
+                                <div className="text-4xl mb-4 text-amber-700">✦</div>
+                                <h1 className="font-serif text-3xl font-bold text-amber-900 mb-2">Certificate of Completion</h1>
+                                <p className="text-amber-800 italic">Workplace Safety & Health Council</p>
+                              </div>
+
+                              <p className="text-lg mb-4 font-serif">This is to certify that</p>
+                              <h2 className="text-2xl font-bold text-amber-900 border-b-2 border-amber-900/30 inline-block px-8 py-2 mb-4">ALEX CHEN</h2>
+
+                              <p className="text-lg mb-8 font-serif">
+                                has successfully completed the<br />
+                                <span className="font-bold">Advanced Workplace Safety Module (Level 2)</span>
+                              </p>
+
+                              <div className="grid grid-cols-2 gap-8 mt-12 text-sm font-serif">
+                                <div className="border-t border-black pt-2">
+                                  <p className="font-bold">Instructor Signature</p>
+                                </div>
+                                <div className="border-t border-black pt-2">
+                                  <p className="font-bold">Date: Feb 10, 2026</p>
+                                </div>
+                              </div>
+                              <div className="mt-8 text-xs text-muted-foreground">Certificate ID: WSH-2026-8892</div>
                             </div>
-                          </>
-                        ) : isTraining ? (
-                          <>
-                            <div className="text-3xl mb-2">✦</div>
-                            <h3 className="font-bold text-xl tracking-wide text-amber-700">CERTIFICATE OF COMPLETION</h3>
-                            <div className="border-t border-amber-200 my-3" />
-                            <p className="italic text-gray-600">This certifies that</p>
-                            <p className="font-bold text-xl mt-2 text-amber-800">ALEX CHEN</p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-3xl mb-2">⚕</div>
-                            <h3 className="font-bold text-xl tracking-wide text-emerald-700">MEDICAL FITNESS CERTIFICATE</h3>
-                            <div className="border-t border-emerald-200 my-3" />
-                            <p className="italic text-gray-600">This certifies that the employee</p>
-                            <p className="font-bold text-xl mt-2 text-emerald-800">ALEX CHEN</p>
-                            <p className="text-sm text-gray-500 mt-1">has completed the annual health check</p>
-                          </>
-                        )}
-                      </div>
+                          ) : (
+                            <div className="space-y-6 font-sans">
+                              <div className="flex items-center gap-4 border-b-2 border-emerald-600 pb-4">
+                                <div className="bg-emerald-600 text-white p-2 rounded">
+                                  <Stethoscope className="h-6 w-6" />
+                                </div>
+                                <div>
+                                  <h2 className="text-xl font-bold text-emerald-800">CITY MEDICAL GROUP</h2>
+                                  <p className="text-xs text-emerald-600">Excellence in Healthcare</p>
+                                </div>
+                              </div>
+
+                              <div className="text-center py-4 bg-emerald-50">
+                                <h1 className="text-xl font-bold text-emerald-900 uppercase tracking-widest">Medical Fitness Certificate</h1>
+                              </div>
+
+                              <div className="space-y-4 text-sm">
+                                <p>This is to certify that <span className="font-bold underline">MR. ALEX CHEN</span>,</p>
+                                <p>Identification No: <span className="font-bold">G1234567Z</span></p>
+                                <p>Has undergone a complete medical examination on <span className="font-bold">Feb 12, 2026</span>.</p>
+                              </div>
+
+                              <div className="border rounded p-4 bg-gray-50 text-sm space-y-2">
+                                <div className="flex justify-between border-b pb-1">
+                                  <span>Physical Examination</span>
+                                  <span className="font-bold text-emerald-600">FIT</span>
+                                </div>
+                                <div className="flex justify-between border-b pb-1">
+                                  <span>X-Ray Screening</span>
+                                  <span className="font-bold text-emerald-600">NORMAL</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Blood Test Panel</span>
+                                  <span className="font-bold text-emerald-600">CLEARED</span>
+                                </div>
+                              </div>
+
+                              <div className="pt-8 grid grid-cols-2 gap-8">
+                                <div>
+                                  <div className="h-12 border-b border-black mb-1">
+                                    <img src="/signature" alt="" className="h-10 opacity-0" /> {/* Placeholder */}
+                                  </div>
+                                  <p className="text-xs font-bold">Dr. Sarah Tan (MCR 12345)</p>
+                                </div>
+                                <div className="flex items-end justify-end">
+                                  <div className="w-20 h-20 border-2 border-emerald-600 rounded-full flex items-center justify-center text-center text-xs text-emerald-600 rotate-12 bg-emerald-50/50">
+                                    OFFICIAL<br />STAMP<br />VERIFIED
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </div>
+
+                  {/* Validation Checklist */}
+                  <div className="bg-secondary/20 rounded-lg p-4 border">
+                    <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      Validation Checklist
+                    </h4>
+                    <div className="space-y-3">
+                      {config.checklist.map((item, index) => (
+                        <div key={index} className="flex items-start gap-2.5">
+                          <div className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${item.status === 'valid' ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground'
+                            }`}>
+                            {item.status === 'valid' ? <Check className="h-2.5 w-2.5" /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
+                          </div>
+                          <span className={`text-sm ${item.status === 'valid' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -10,13 +10,27 @@ import { EmployeeContracts } from "./employee/employee-contracts"
 import { EmployeeChat } from "./employee/employee-chat"
 import { EmployeeRequests } from "./employee/employee-requests"
 import { EmployeeCompliance } from "./employee/employee-compliance"
+import { EmployeeJournal } from "./employee/employee-journal"
 import { HrDashboard } from "./hr/hr-dashboard"
 import { HrContractGeneration } from "./hr/hr-contract-generation"
 import { HrWorkflows } from "./hr/hr-workflows"
 import { HrCompliance } from "./hr/hr-compliance"
 import { HrVersionControl } from "./hr/hr-version-control"
+import { HrPerformance } from "./hr/hr-performance-main"
+import { EmployeeProfile } from "./employee/employee-profile"
+import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-export function HrEmployeePortal() {
+export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [isHrMode, setIsHrMode] = useState(false)
   const [activePage, setActivePage] = useState("home")
   const [navPayload, setNavPayload] = useState<any>(null)
@@ -31,6 +45,7 @@ export function HrEmployeePortal() {
     { id: "contracts", label: "Contract & Equity", icon: FileText },
     { id: "chat", label: "Ask HR", icon: MessageSquare },
     { id: "requests", label: "Requests", icon: Send },
+    { id: "journal", label: "Personal Journal", icon: BookOpen },
     { id: "compliance", label: "Compliance Alerts", icon: AlertCircle },
   ]
 
@@ -39,17 +54,76 @@ export function HrEmployeePortal() {
     { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
     { id: "workflows", label: "Workflows", icon: Workflow },
     { id: "compliance", label: "Compliance & Audit", icon: Shield },
+    { id: "performance", label: "Performance", icon: TrendingUp },
     { id: "version-control", label: "Version Control", icon: Archive },
   ]
 
   const currentNav = isHrMode ? hrNav : employeeNav
 
-  const MOCK_USERS = {
-    employee: { name: "Alex Chen", email: "alex.chen@zerohr.com", role: "employee" },
-    hr: { name: "Sarah Johnson", email: "sarah.johnson@zerohr.com", role: "hr" }
+  // Notification State
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [selectedNotification, setSelectedNotification] = useState<any>(null)
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false)
+
+  useEffect(() => {
+    const checkNotifications = () => {
+      const stored = localStorage.getItem('notifications')
+      if (stored) {
+        const allNotifs = JSON.parse(stored)
+        // Filter based on mode
+        // In a real app, we'd filter by recipientId. Here we filter by type/context
+        if (isHrMode) {
+          // HR sees 'info_submitted' or system alerts
+          setNotifications(allNotifs.filter((n: any) => n.type === 'info_submitted' && !n.read))
+        } else {
+          // Employee sees 'document', 'request_info', or 'compliance_alert'
+          setNotifications(allNotifs.filter((n: any) => (n.type === 'document' || n.type === 'request_info' || n.type === 'compliance_alert') && !n.read))
+        }
+      }
+    }
+
+    checkNotifications()
+    const interval = setInterval(checkNotifications, 2000)
+    return () => clearInterval(interval)
+  }, [isHrMode])
+
+  const handleViewNotification = (notif: any) => {
+    // Mark as read
+    const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updated = stored.map((n: any) => n.id === notif.id ? { ...n, read: true } : n)
+    localStorage.setItem('notifications', JSON.stringify(updated))
+
+    // Open Modal
+    setSelectedNotification(notif)
+    setIsNotificationModalOpen(true)
   }
 
-  const currentUser = isHrMode ? MOCK_USERS.hr : MOCK_USERS.employee
+  const handleRedirect = () => {
+    if (!selectedNotification) return
+
+    if (selectedNotification.type === 'document') {
+      setActivePage("contracts")
+    } else if (selectedNotification.type === 'request_info') {
+      setActivePage("requests")
+    } else if (selectedNotification.type === 'info_submitted') {
+      setActivePage("workflows")
+    } else if (selectedNotification.type === 'compliance_alert') {
+      setActivePage("compliance")
+    }
+    setIsNotificationModalOpen(false)
+  }
+
+  const handleDeleteNotification = (e: React.MouseEvent, notifId: string) => {
+    e.stopPropagation() // Prevent navigation
+
+    // Update State
+    setNotifications(prev => prev.filter(n => n.id !== notifId))
+
+    // Update LocalStorage
+    const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updated = stored.filter((n: any) => n.id !== notifId)
+    localStorage.setItem('notifications', JSON.stringify(updated))
+  }
 
   const renderContent = () => {
     if (!isHrMode) {
@@ -61,13 +135,17 @@ export function HrEmployeePortal() {
         case "chat":
           return <EmployeeChat
             onNavigate={handleNavigate}
-            userEmail={currentUser.email}
-            userRole={currentUser.role}
+            userEmail={currentUser?.email}
+            userRole={currentUser?.role}
           />
         case "requests":
           return <EmployeeRequests />
         case "compliance":
           return <EmployeeCompliance />
+        case "journal":
+          return <EmployeeJournal />
+        case "profile":
+          return <EmployeeProfile />
         default:
           return <EmployeeHome />
       }
@@ -75,6 +153,8 @@ export function HrEmployeePortal() {
       switch (activePage) {
         case "dashboard":
           return <HrDashboard />
+        case "performance":
+          return <HrPerformance />
         case "contract-gen":
           return <HrContractGeneration />
         case "workflows":
@@ -138,8 +218,131 @@ export function HrEmployeePortal() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        {renderContent()}
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-end px-6 py-3 border-b bg-card shrink-0 gap-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+                <Bell className="h-5 w-5" />
+                {notifications.length > 0 && (
+                  <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-80" align="end">
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {notifications.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground text-center">No new notifications</div>
+              ) : (
+                notifications.map((notif, i) => (
+                  <DropdownMenuItem key={i} onClick={() => handleViewNotification(notif)} className="cursor-pointer flex justify-between items-start group">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-medium text-sm">{notif.title || notif.type + ' Update'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {notif.message || (isHrMode ? `${notif.employee} submitted info` : "HR sent an update")}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 -mr-2"
+                      onClick={(e) => handleDeleteNotification(e, notif.id)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Notification Details Modal */}
+          <Dialog open={isNotificationModalOpen} onOpenChange={setIsNotificationModalOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  {selectedNotification?.title || 'Notification Details'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedNotification?.timestamp && new Date(selectedNotification.timestamp).toLocaleString()}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-4 space-y-4">
+                <div className="p-4 bg-secondary/30 rounded-lg border">
+                  <p className="text-sm leading-relaxed">{selectedNotification?.message}</p>
+                </div>
+
+                {selectedNotification?.type === 'document' && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded">
+                    <FileText className="h-4 w-4" />
+                    <span>Document available for review</span>
+                  </div>
+                )}
+
+                {selectedNotification?.type === 'request_info' && (
+                  <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Action required from you</span>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsNotificationModalOpen(false)}>Close</Button>
+                <Button onClick={handleRedirect}>
+                  Go to {
+                    selectedNotification?.type === 'document' ? 'Contracts' :
+                      selectedNotification?.type === 'request_info' ? 'Requests' :
+                        selectedNotification?.type === 'info_submitted' ? 'Workflows' :
+                          'Section'
+                  }
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white/20 shadow-sm">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={currentUser?.image || "/placeholder-user.jpg"} alt="@shadcn" />
+                  <AvatarFallback>{currentUser?.name?.charAt(0) || "U"}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{currentUser?.name}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{currentUser?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setActivePage("profile"); setIsHrMode(false) }}>
+                <CircleUser className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Page Content */}
+        <div className="flex-1 overflow-auto">
+          {renderContent()}
+        </div>
       </main>
     </div>
   )

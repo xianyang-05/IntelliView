@@ -50,6 +50,31 @@ export default function LoginPage() {
         await signIn("google", { callbackUrl: "/" })
     }
 
+    const handleDemoLogin = async () => {
+        setIsLoading(true)
+        setError(null)
+        try {
+            const result = await signIn("credentials", {
+                email: "alex.chan@zerohr.com",
+                password: "password123",
+                redirect: false,
+            })
+
+            if (result?.error) {
+                setError("Demo login failed. Please try again.")
+                setIsLoading(false)
+                return
+            }
+
+            router.push("/")
+            router.refresh()
+        } catch (error) {
+            console.error(error)
+            setError("Something went wrong with demo login.")
+            setIsLoading(false)
+        }
+    }
+
     return (
         <AuthPageWrapper>
             <Card>
@@ -70,6 +95,14 @@ export default function LoginPage() {
                                 </svg>
                             )}
                             Continue with Google
+                        </Button>
+                        <Button variant="secondary" onClick={handleDemoLogin} disabled={isLoading}>
+                            {isLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Loader2 className="mr-2 h-4 w-4 opacity-0" />
+                            )}
+                            Demo User Login
                         </Button>
                     </div>
                     <div className="relative">
