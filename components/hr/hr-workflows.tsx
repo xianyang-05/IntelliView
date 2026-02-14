@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sparkles, AlertTriangle, Check, X, Info } from "lucide-react"
 
 export function HrWorkflows() {
@@ -17,167 +17,161 @@ export function HrWorkflows() {
   const [chatHistory, setChatHistory] = useState<{ sender: string, message: string }[]>([])
   const [showChat, setShowChat] = useState(false)
 
-  // Mock Data State
-  const [requests, setRequests] = useState({
-    expenses: [
-      {
-        id: "exp-1",
-        employee: "Sarah Johnson",
-        department: "Engineering",
-        amount: "$450",
-        category: "Conference",
-        date: "Mar 14, 2024",
-        status: "pending",
-        description: "React Summit 2024 ticket",
-        type: "Expense Claim"
-      },
-      // ... (other expenses would be here, but for brevity in this replace, I'll keep the structure and just use the initial state logic if possible, or fully replace the lists)
-    ],
-    leave: [
-      // ... similarly for leave
-    ],
-    other: []
-  })
+  // Load requests from localStorage or use initial mock data
+  const [expenseClaims, setExpenseClaims] = useState<any[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([])
+  const [otherRequests, setOtherRequests] = useState<any[]>([])
 
-  // fully replacing the static lists with state initialization
-  const [expenseClaims, setExpenseClaims] = useState([
-    {
-      id: "exp-1",
-      employee: "Sarah Johnson",
-      department: "Engineering",
-      amount: "$450",
-      category: "Conference",
-      date: "Mar 14, 2024",
-      status: "pending",
-      description: "React Summit 2024 ticket",
-      type: "Expense Claim"
-    },
-    {
-      id: "exp-2",
-      employee: "Michael Chen",
-      department: "Product",
-      amount: "$1,250",
-      category: "Travel",
-      date: "Mar 12, 2024",
-      status: "approved",
-      description: "Client meeting in New York",
-      type: "Expense Claim"
-    },
-    {
-      id: "exp-3",
-      employee: "Emma Wilson",
-      department: "Design",
-      amount: "$89",
-      category: "Software",
-      date: "Mar 10, 2024",
-      status: "pending",
-      description: "Figma professional license",
-      type: "Expense Claim"
+  useEffect(() => {
+    const loadRequests = () => {
+      const stored = localStorage.getItem('workflowRequests')
+      if (stored) {
+        const allRequests = JSON.parse(stored)
+        setExpenseClaims(allRequests.filter((r: any) => r.type === "Expense Claim"))
+        setLeaveRequests(allRequests.filter((r: any) => r.type.includes("Leave")))
+        setOtherRequests(allRequests.filter((r: any) => !r.type.includes("Leave") && r.type !== "Expense Claim"))
+      } else {
+        // Initial Mock Data
+        const initialRequests = [
+          {
+            id: "exp-1",
+            employee: "Sarah Johnson",
+            department: "Engineering",
+            amount: "$450",
+            category: "Conference",
+            date: "Mar 14, 2024",
+            status: "pending",
+            description: "React Summit 2024 ticket",
+            type: "Expense Claim"
+          },
+          {
+            id: "exp-2",
+            employee: "Michael Chen",
+            department: "Product",
+            amount: "$1,250",
+            category: "Travel",
+            date: "Mar 12, 2024",
+            status: "approved",
+            description: "Client meeting in New York",
+            type: "Expense Claim"
+          },
+          {
+            id: "exp-3",
+            employee: "Emma Wilson",
+            department: "Design",
+            amount: "$89",
+            category: "Software",
+            date: "Mar 10, 2024",
+            status: "pending",
+            description: "Figma professional license",
+            type: "Expense Claim"
+          },
+          {
+            id: "leave-1",
+            employee: "James Taylor",
+            department: "Analytics",
+            type: "Annual Leave",
+            dates: "Mar 25-29, 2024",
+            days: 5,
+            status: "pending",
+            reason: "Family vacation"
+          },
+          {
+            id: "leave-2",
+            employee: "Lisa Anderson",
+            department: "Marketing",
+            type: "Sick Leave",
+            dates: "Mar 18, 2024",
+            days: 1,
+            status: "approved",
+            reason: "Medical appointment"
+          },
+          {
+            id: "other-1",
+            employee: "Sophie Martinez",
+            department: "Design",
+            type: "Equipment Request",
+            item: "MacBook Pro 16\"",
+            status: "approved",
+            date: "Mar 15, 2024"
+          }
+        ]
+        localStorage.setItem('workflowRequests', JSON.stringify(initialRequests))
+        setExpenseClaims(initialRequests.filter((r: any) => r.type === "Expense Claim"))
+        setLeaveRequests(initialRequests.filter((r: any) => r.type.includes("Leave")))
+        setOtherRequests(initialRequests.filter((r: any) => !r.type.includes("Leave") && r.type !== "Expense Claim"))
+      }
     }
-  ])
-
-  const [leaveRequests, setLeaveRequests] = useState([
-    {
-      id: "leave-1",
-      employee: "James Taylor",
-      department: "Analytics",
-      type: "Annual Leave",
-      dates: "Mar 25-29, 2024",
-      days: 5,
-      status: "pending",
-      reason: "Family vacation"
-    },
-    {
-      id: "leave-2",
-      employee: "Lisa Anderson",
-      department: "Marketing",
-      type: "Sick Leave",
-      dates: "Mar 18, 2024",
-      days: 1,
-      status: "approved",
-      reason: "Medical appointment"
-    },
-    {
-      id: "leave-3",
-      employee: "Alex Kumar",
-      department: "Engineering",
-      type: "Personal Leave",
-      dates: "Apr 5-7, 2024",
-      days: 3,
-      status: "pending",
-      reason: "Personal matters"
-    }
-  ])
-
-  const [otherRequests, setOtherRequests] = useState([
-    {
-      id: "other-1",
-      employee: "Sophie Martinez",
-      department: "Design",
-      type: "Equipment Request",
-      item: "MacBook Pro 16\"",
-      status: "approved",
-      date: "Mar 15, 2024"
-    },
-    {
-      id: "other-2",
-      employee: "David Park",
-      department: "Sales",
-      type: "Training Request",
-      item: "Sales Leadership Course",
-      status: "pending",
-      date: "Mar 13, 2024"
-    },
-    {
-      id: "other-3",
-      employee: "Sarah Johnson",
-      department: "Engineering",
-      type: "Remote Work",
-      item: "Work from home setup",
-      status: "approved",
-      date: "Mar 11, 2024"
-    }
-  ])
+    loadRequests()
+    // Poll for updates (e.g. from employee)
+    const interval = setInterval(loadRequests, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleCardClick = (request: any) => {
     setSelectedRequest(request)
     setIsModalOpen(true)
     setShowChat(false)
-    setChatHistory([])
+    setChatHistory(request.messages || [])
+    setRequestInfoChat("")
+  }
+
+  const updateLocalStorage = (updatedRequest: any) => {
+    const stored = JSON.parse(localStorage.getItem('workflowRequests') || '[]')
+    const updatedList = stored.map((r: any) => r.id === updatedRequest.id ? updatedRequest : r)
+    localStorage.setItem('workflowRequests', JSON.stringify(updatedList))
+
+    // Update local state immediately
+    setExpenseClaims(updatedList.filter((r: any) => r.type === "Expense Claim"))
+    setLeaveRequests(updatedList.filter((r: any) => r.type.includes("Leave")))
+    setOtherRequests(updatedList.filter((r: any) => !r.type.includes("Leave") && r.type !== "Expense Claim"))
   }
 
   const handleStatusUpdate = (status: string) => {
     if (!selectedRequest) return
-
-    const updateList = (list: any[], setList: any) => {
-      setList(list.map((req: any) => req.id === selectedRequest.id ? { ...req, status } : req))
-    }
-
-    if (selectedRequest.type === "Expense Claim") updateList(expenseClaims, setExpenseClaims)
-    else if (selectedRequest.type && selectedRequest.type.includes("Leave")) updateList(leaveRequests, setLeaveRequests)
-    else updateList(otherRequests, setOtherRequests)
-
-    setSelectedRequest({ ...selectedRequest, status })
-    if (status !== 'pending') setIsModalOpen(false)
+    const updatedRequest = { ...selectedRequest, status }
+    updateLocalStorage(updatedRequest)
+    setSelectedRequest(updatedRequest)
+    if (status !== 'pending' && status !== 'info_requested') setIsModalOpen(false)
   }
 
   const handleRequestInfo = () => {
     setShowChat(true)
   }
 
-  const sendChatMessage = () => {
-    if (!requestInfoChat.trim()) return
-    const newMessage = { sender: "HR", message: requestInfoChat }
-    setChatHistory([...chatHistory, newMessage])
-    setRequestInfoChat("")
+  const handleSendRequestInfo = () => {
+    if (!requestInfoChat.trim() || !selectedRequest) return
 
-    // Simulate employee response
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, {
-        sender: selectedRequest.employee.split(" ")[0],
-        message: "I've attached the additional documents you requested. Let me know if you need anything else."
-      }])
-    }, 1500)
+    const newMessage = { sender: "HR", message: requestInfoChat, timestamp: new Date().toISOString() }
+    const updatedMessages = [...(selectedRequest.messages || []), newMessage]
+
+    const updatedRequest = {
+      ...selectedRequest,
+      status: 'info_requested',
+      messages: updatedMessages
+    }
+
+    updateLocalStorage(updatedRequest)
+
+    // Save Shared Notification
+    const newSharedNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'request_info',
+      title: 'Action Required',
+      message: `HR requested info for ${selectedRequest.type}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      data: { requestId: selectedRequest.id }
+    }
+    const sharedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    sharedNotifications.push(newSharedNotification)
+    localStorage.setItem('notifications', JSON.stringify(sharedNotifications))
+
+    setSelectedRequest(updatedRequest)
+    setChatHistory(updatedMessages)
+    setRequestInfoChat("")
+    setIsModalOpen(false)
+    alert("Request for information sent to employee.")
   }
 
   const getAiAnalysis = (type: string, amount?: string) => {
@@ -523,9 +517,9 @@ export function HrWorkflows() {
                     className="min-h-[40px] h-[40px] resize-none"
                     value={requestInfoChat}
                     onChange={(e) => setRequestInfoChat(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendChatMessage())}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendRequestInfo())}
                   />
-                  <Button size="icon" onClick={sendChatMessage} className="shrink-0 bg-blue-600 hover:bg-blue-700">
+                  <Button size="icon" onClick={handleSendRequestInfo} className="shrink-0 bg-blue-600 hover:bg-blue-700">
                     <Sparkles className="h-4 w-4" />
                   </Button>
                 </div>

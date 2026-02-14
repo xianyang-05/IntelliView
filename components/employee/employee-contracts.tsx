@@ -1,7 +1,5 @@
-"use client"
-
-import { useState } from "react"
-import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy } from "lucide-react"
+import { useState, useEffect } from "react"
+import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy, Check, CheckCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,8 +10,9 @@ export function EmployeeContracts() {
   const [activeTab, setActiveTab] = useState("contracts")
   const [viewingContract, setViewingContract] = useState<string | null>(null)
 
-  const contracts = [
+  const [contracts, setContracts] = useState<any[]>([
     {
+      id: 'static-1',
       name: "Employment Contract",
       version: "v1.0",
       date: "Jan 15, 2023",
@@ -22,6 +21,7 @@ export function EmployeeContracts() {
       statusColor: "bg-yellow-500/20 text-yellow-400"
     },
     {
+      id: 'static-2',
       name: "NDA Agreement",
       version: "v1.0",
       date: "Jan 15, 2023",
@@ -30,6 +30,7 @@ export function EmployeeContracts() {
       statusColor: "bg-emerald-500/20 text-emerald-400"
     },
     {
+      id: 'static-3',
       name: "Remote Work Policy",
       version: "v1.0",
       date: "Mar 10, 2023",
@@ -37,7 +38,34 @@ export function EmployeeContracts() {
       status: "Signed",
       statusColor: "bg-emerald-500/20 text-emerald-400"
     }
-  ]
+  ])
+
+  useEffect(() => {
+    const storedDocs = JSON.parse(localStorage.getItem('employeeDocuments') || '[]')
+    if (storedDocs.length > 0) {
+      setContracts(prev => {
+        // Filter out any duplicates if necessary, or just append distinct ones
+        // For simplicity, we just keep static + stored
+        // To avoid infinite loop or duplication on re-mounts if we had strict mode on dev:
+        // We can check if IDs already exist.
+        const existingIds = new Set(prev.map(c => c.id))
+        const newDocs = storedDocs.filter((d: any) => !existingIds.has(d.id))
+        return [...prev, ...newDocs]
+      })
+    }
+  }, [])
+
+  const handleSignContract = (id: string) => {
+    // Update local state
+    setContracts(prev => prev.map(c => c.id === id ? { ...c, status: 'Signed', statusColor: 'bg-emerald-500/20 text-emerald-400' } : c))
+
+    // Update localStorage
+    const storedDocs = JSON.parse(localStorage.getItem('employeeDocuments') || '[]')
+    const updatedDocs = storedDocs.map((doc: any) => doc.id === id ? { ...doc, status: 'Signed', statusColor: 'bg-emerald-500/20 text-emerald-400' } : doc)
+    localStorage.setItem('employeeDocuments', JSON.stringify(updatedDocs))
+
+    setViewingContract(null) // Return to list
+  }
 
   const equityGrants = [
     {
@@ -84,7 +112,9 @@ export function EmployeeContracts() {
 
   // Contract Viewer
   if (viewingContract) {
-    const contract = contracts.find(c => c.name === viewingContract)
+    const contract = contracts.find(c => c.id === viewingContract)
+    const isGenerated = contract?.content
+
     return (
       <div className="p-8">
         <div className="flex items-center justify-between mb-6">
@@ -107,7 +137,11 @@ export function EmployeeContracts() {
               Download PDF
             </Button>
             {contract?.status === "Pending Signature" && (
-              <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button
+                onClick={() => contract && handleSignContract(contract.id)}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4" />
                 Accept & Sign
               </Button>
             )}
@@ -119,62 +153,70 @@ export function EmployeeContracts() {
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="p-8">
-                <ScrollArea className="h-[calc(100vh-280px)]">
-                  <div className="max-w-2xl mx-auto space-y-6 text-sm leading-relaxed">
-                    <h2 className="text-center font-bold text-lg tracking-wider">OFFER LETTER AMENDMENT</h2>
+                {isGenerated ? (
+                  <iframe
+                    srcDoc={contract.content}
+                    className="w-full h-[calc(100vh-280px)] border rounded-lg bg-white"
+                    title="Document Preview"
+                  />
+                ) : (
+                  <ScrollArea className="h-[calc(100vh-280px)]">
+                    <div className="max-w-2xl mx-auto space-y-6 text-sm leading-relaxed">
+                      <h2 className="text-center font-bold text-lg tracking-wider">OFFER LETTER AMENDMENT</h2>
 
-                    <p>Date: February 7, 2026</p>
-                    <p>Dear Employee,</p>
+                      <p>Date: February 7, 2026</p>
+                      <p>Dear Employee,</p>
 
-                    <p className="font-bold">RE: AMENDMENT TO EMPLOYMENT TERMS</p>
+                      <p className="font-bold">RE: AMENDMENT TO EMPLOYMENT TERMS</p>
 
-                    <p>We are pleased to confirm the following amendments to your employment terms with ZeroHR (the &quot;Company&quot;), effective from March 1, 2026.</p>
+                      <p>We are pleased to confirm the following amendments to your employment terms with ZeroHR (the &quot;Company&quot;), effective from March 1, 2026.</p>
 
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="font-bold">1. POSITION AND REPORTING</h3>
-                        <p>Your position remains as Senior Product Designer. You will continue to report to the Head of Design.</p>
-                      </div>
-
-                      <div>
-                        <h3 className="font-bold">2. COMPENSATION</h3>
-                        <p>a) Base Salary: Your annual base salary will be increased to $145,000 per annum, payable in accordance with the Company&apos;s standard payroll practices.</p>
-                        <p className="mt-2">b) Performance Bonus: You will be eligible for an annual performance bonus of up to 15% of your base salary, subject to achievement of individual and company performance targets.</p>
-                      </div>
-
-                      <div>
-                        <h3 className="font-bold">3. EQUITY</h3>
-                        <p>You will be granted 1,200 new stock options under the Company&apos;s Employee Stock Option Plan, vesting over 3 years with quarterly vesting.</p>
-                      </div>
-
-                      <div>
-                        <h3 className="font-bold">4. REMOTE WORK</h3>
-                        <p>You are approved to work remotely up to 3 days per week, subject to the Company&apos;s Remote Work Policy.</p>
-                      </div>
-
-                      <div>
-                        <h3 className="font-bold">5. OTHER TERMS</h3>
-                        <p>All other terms and conditions of your employment remain unchanged and continue to apply.</p>
-                      </div>
-                    </div>
-
-                    <div className="pt-6">
-                      <p>Please confirm your acceptance by signing below.</p>
-                      <div className="mt-8 space-y-4">
+                      <div className="space-y-4">
                         <div>
-                          <p className="font-bold">For ZeroHR</p>
-                          <div className="mt-2 border-b border-border w-48">&nbsp;</div>
-                          <p className="text-muted-foreground text-xs mt-1">Authorized Signatory</p>
+                          <h3 className="font-bold">1. POSITION AND REPORTING</h3>
+                          <p>Your position remains as Senior Product Designer. You will continue to report to the Head of Design.</p>
                         </div>
+
                         <div>
-                          <p className="font-bold">Employee Acceptance</p>
-                          <div className="mt-2 border-b border-border w-48">&nbsp;</div>
-                          <p className="text-muted-foreground text-xs mt-1">Signature & Date</p>
+                          <h3 className="font-bold">2. COMPENSATION</h3>
+                          <p>a) Base Salary: Your annual base salary will be increased to $145,000 per annum, payable in accordance with the Company&apos;s standard payroll practices.</p>
+                          <p className="mt-2">b) Performance Bonus: You will be eligible for an annual performance bonus of up to 15% of your base salary, subject to achievement of individual and company performance targets.</p>
+                        </div>
+
+                        <div>
+                          <h3 className="font-bold">3. EQUITY</h3>
+                          <p>You will be granted 1,200 new stock options under the Company&apos;s Employee Stock Option Plan, vesting over 3 years with quarterly vesting.</p>
+                        </div>
+
+                        <div>
+                          <h3 className="font-bold">4. REMOTE WORK</h3>
+                          <p>You are approved to work remotely up to 3 days per week, subject to the Company&apos;s Remote Work Policy.</p>
+                        </div>
+
+                        <div>
+                          <h3 className="font-bold">5. OTHER TERMS</h3>
+                          <p>All other terms and conditions of your employment remain unchanged and continue to apply.</p>
                         </div>
                       </div>
+
+                      <div className="pt-6">
+                        <p>Please confirm your acceptance by signing below.</p>
+                        <div className="mt-8 space-y-4">
+                          <div>
+                            <p className="font-bold">For ZeroHR</p>
+                            <div className="mt-2 border-b border-border w-48">&nbsp;</div>
+                            <p className="text-muted-foreground text-xs mt-1">Authorized Signatory</p>
+                          </div>
+                          <div>
+                            <p className="font-bold">Employee Acceptance</p>
+                            <div className="mt-2 border-b border-border w-48">&nbsp;</div>
+                            <p className="text-muted-foreground text-xs mt-1">Signature & Date</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </ScrollArea>
+                  </ScrollArea>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -269,7 +311,7 @@ export function EmployeeContracts() {
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => setViewingContract(contract.name)}
+                    onClick={() => setViewingContract(contract.id)}
                   >
                     <Eye className="h-4 w-4" />
                     View
