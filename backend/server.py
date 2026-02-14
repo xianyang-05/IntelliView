@@ -12,7 +12,9 @@ import anthropic
 from supabase import create_client, Client
 import chromadb
 
-load_dotenv()
+load_dotenv()  # Load .env if exists
+_env_local = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
+load_dotenv(dotenv_path=_env_local, override=True)  # Also load .env.local
 
 app = FastAPI()
 

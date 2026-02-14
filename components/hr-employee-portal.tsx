@@ -30,6 +30,70 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+function NavItem({
+  item,
+  isHrMode,
+  activePage,
+  notifications,
+  setActivePage,
+  setNotifications,
+}: {
+  item: { id: string; label: string; icon: any }
+  isHrMode: boolean
+  activePage: string
+  notifications: any[]
+  setActivePage: (page: string) => void
+  setNotifications: React.Dispatch<React.SetStateAction<any[]>>
+}) {
+  const Icon = item.icon
+  const [isFirstVisit, setIsFirstVisit] = useState(false)
+
+  useEffect(() => {
+    if (item.id === 'compliance' && isHrMode) {
+      const hasVisited = localStorage.getItem('has_visited_compliance')
+      if (!hasVisited) setIsFirstVisit(true)
+    }
+  }, [item.id, isHrMode])
+
+  const showRedDot =
+    (isHrMode &&
+      item.id === 'compliance' &&
+      notifications.some((n) => n.type === 'compliance_alert' && !n.read)) ||
+    isFirstVisit
+
+  return (
+    <Button
+      variant={activePage === item.id ? "secondary" : "ghost"}
+      className="w-full justify-start relative"
+      onClick={() => {
+        setActivePage(item.id)
+        if (item.id === 'compliance') {
+          const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
+          const updated = stored.map((n: any) =>
+            n.type === 'compliance_alert' ? { ...n, read: true } : n
+          )
+          localStorage.setItem('notifications', JSON.stringify(updated))
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.type === 'compliance_alert' ? { ...n, read: true } : n
+            )
+          )
+          localStorage.setItem('has_visited_compliance', 'true')
+          setIsFirstVisit(false)
+        }
+      }}
+    >
+      <div className="relative">
+        <Icon className="h-4 w-4 mr-3" />
+        {showRedDot && (
+          <span className="absolute top-0 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+        )}
+      </div>
+      {item.label}
+    </Button>
+  )
+}
+
 export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [isHrMode, setIsHrMode] = useState(false)
   const [activePage, setActivePage] = useState("home")
@@ -259,51 +323,17 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
-          {currentNav.map((item) => {
-            const Icon = item.icon
-            // Red dot logic: Show if notifications exist OR if it's the first time visiting compliance (localStorage check needed)
-            // We use a state for the first-visit check to ensure hydration matches
-            const [isFirstVisit, setIsFirstVisit] = useState(false)
-
-            useEffect(() => {
-              if (item.id === 'compliance' && isHrMode) {
-                const hasVisited = localStorage.getItem('has_visited_compliance')
-                if (!hasVisited) setIsFirstVisit(true)
-              }
-            }, [item.id, isHrMode])
-
-            const showRedDot = (isHrMode && item.id === 'compliance' && notifications.some(n => n.type === 'compliance_alert' && !n.read)) || isFirstVisit
-
-            return (
-              <Button
-                key={item.id}
-                variant={activePage === item.id ? "secondary" : "ghost"}
-                className="w-full justify-start relative"
-                onClick={() => {
-                  setActivePage(item.id)
-                  if (item.id === 'compliance') {
-                    // Clear red dot logic immediate visual feedback
-                    const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
-                    const updated = stored.map((n: any) => n.type === 'compliance_alert' ? { ...n, read: true } : n)
-                    localStorage.setItem('notifications', JSON.stringify(updated))
-                    setNotifications(prev => prev.map(n => n.type === 'compliance_alert' ? { ...n, read: true } : n))
-
-                    // Clear first visit flag
-                    localStorage.setItem('has_visited_compliance', 'true')
-                    setIsFirstVisit(false)
-                  }
-                }}
-              >
-                <div className="relative">
-                  <Icon className="h-4 w-4 mr-3" />
-                  {showRedDot && (
-                    <span className="absolute top-0 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                  )}
-                </div>
-                {item.label}
-              </Button>
-            )
-          })}
+          {currentNav.map((item) => (
+            <NavItem
+              key={item.id}
+              item={item}
+              isHrMode={isHrMode}
+              activePage={activePage}
+              notifications={notifications}
+              setActivePage={setActivePage}
+              setNotifications={setNotifications}
+            />
+          ))}
         </nav>
       </aside>
 
