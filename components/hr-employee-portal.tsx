@@ -19,6 +19,12 @@ import { HrVersionControl } from "./hr/hr-version-control"
 export function HrEmployeePortal() {
   const [isHrMode, setIsHrMode] = useState(false)
   const [activePage, setActivePage] = useState("home")
+  const [navPayload, setNavPayload] = useState<any>(null)
+
+  const handleNavigate = (page: string, payload?: any) => {
+    setActivePage(page)
+    if (payload) setNavPayload(payload)
+  }
 
   const employeeNav = [
     { id: "home", label: "Home", icon: Home },
@@ -38,15 +44,26 @@ export function HrEmployeePortal() {
 
   const currentNav = isHrMode ? hrNav : employeeNav
 
+  const MOCK_USERS = {
+    employee: { name: "Alex Chen", email: "alex.chen@zerohr.com", role: "employee" },
+    hr: { name: "Sarah Johnson", email: "sarah.johnson@zerohr.com", role: "hr" }
+  }
+
+  const currentUser = isHrMode ? MOCK_USERS.hr : MOCK_USERS.employee
+
   const renderContent = () => {
     if (!isHrMode) {
       switch (activePage) {
         case "home":
           return <EmployeeHome />
         case "contracts":
-          return <EmployeeContracts />
+          return <EmployeeContracts highlight={navPayload} />
         case "chat":
-          return <EmployeeChat />
+          return <EmployeeChat
+            onNavigate={handleNavigate}
+            userEmail={currentUser.email}
+            userRole={currentUser.role}
+          />
         case "requests":
           return <EmployeeRequests />
         case "compliance":
@@ -81,7 +98,7 @@ export function HrEmployeePortal() {
             <Building2 className="h-8 w-8 text-primary" />
             <span className="text-xl font-semibold">PeopleHub</span>
           </div>
-          
+
           {/* Portal Toggle */}
           <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
             <div className="flex items-center gap-2">
@@ -95,7 +112,7 @@ export function HrEmployeePortal() {
               checked={isHrMode}
               onCheckedChange={(checked) => {
                 setIsHrMode(checked)
-                setActivePage(checked ? "dashboard" : "home")
+                handleNavigate(checked ? "dashboard" : "home")
               }}
             />
           </div>
@@ -110,7 +127,7 @@ export function HrEmployeePortal() {
                 key={item.id}
                 variant={activePage === item.id ? "secondary" : "ghost"}
                 className="w-full justify-start"
-                onClick={() => setActivePage(item.id)}
+                onClick={() => handleNavigate(item.id)}
               >
                 <Icon className="h-4 w-4 mr-3" />
                 {item.label}
