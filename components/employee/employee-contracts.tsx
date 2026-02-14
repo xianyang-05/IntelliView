@@ -1,18 +1,40 @@
-import { useState, useEffect } from "react"
-import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy, Check, CheckCircle } from "lucide-react"
+"use client"
+
+import { useState, useRef, useEffect } from "react"
+import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ContractContent } from "./contract-content"
+import { cn } from "@/lib/utils"
 
-export function EmployeeContracts() {
+interface EmployeeContractsProps {
+  highlight?: { section_id: string }
+}
+
+export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
   const [activeTab, setActiveTab] = useState("contracts")
   const [viewingContract, setViewingContract] = useState<string | null>(null)
 
-  const [contracts, setContracts] = useState<any[]>([
+  interface Contract {
+    id: string
+    name: string
+    version: string
+    date: string
+    type: string
+    status: string
+    statusColor: string
+    signature?: string
+    tempSignature?: string
+  }
+
+  const [contractsList, setContractsList] = useState<Contract[]>([
     {
-      id: 'static-1',
+      id: "c1",
       name: "Employment Contract",
       version: "v1.0",
       date: "Jan 15, 2023",
@@ -21,7 +43,7 @@ export function EmployeeContracts() {
       statusColor: "bg-yellow-500/20 text-yellow-400"
     },
     {
-      id: 'static-2',
+      id: "c2",
       name: "NDA Agreement",
       version: "v1.0",
       date: "Jan 15, 2023",
@@ -30,7 +52,7 @@ export function EmployeeContracts() {
       statusColor: "bg-emerald-500/20 text-emerald-400"
     },
     {
-      id: 'static-3',
+      id: "c3",
       name: "Remote Work Policy",
       version: "v1.0",
       date: "Mar 10, 2023",
@@ -39,32 +61,122 @@ export function EmployeeContracts() {
       statusColor: "bg-emerald-500/20 text-emerald-400"
     }
   ])
+  const [isSignDialogOpen, setIsSignDialogOpen] = useState(false)
 
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+
+  // Initialize canvas context
   useEffect(() => {
-    const storedDocs = JSON.parse(localStorage.getItem('employeeDocuments') || '[]')
-    if (storedDocs.length > 0) {
-      setContracts(prev => {
-        // Filter out any duplicates if necessary, or just append distinct ones
-        // For simplicity, we just keep static + stored
-        // To avoid infinite loop or duplication on re-mounts if we had strict mode on dev:
-        // We can check if IDs already exist.
-        const existingIds = new Set(prev.map(c => c.id))
-        const newDocs = storedDocs.filter((d: any) => !existingIds.has(d.id))
-        return [...prev, ...newDocs]
-      })
+    if (isSignDialogOpen && canvasRef.current) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.lineWidth = 2
+        ctx.lineCap = 'round'
+        ctx.strokeStyle = '#000000'
+      }
     }
-  }, [])
+  }, [isSignDialogOpen])
 
-  const handleSignContract = (id: string) => {
-    // Update local state
-    setContracts(prev => prev.map(c => c.id === id ? { ...c, status: 'Signed', statusColor: 'bg-emerald-500/20 text-emerald-400' } : c))
+  // EFFECT: Handle Highlighting (Now handled inside ContractContent, but we still need to open the right contract)
+  useEffect(() => {
+    if (highlight?.section_id) {
+      setViewingContract("c1")
+    }
+  }, [highlight])
 
-    // Update localStorage
-    const storedDocs = JSON.parse(localStorage.getItem('employeeDocuments') || '[]')
-    const updatedDocs = storedDocs.map((doc: any) => doc.id === id ? { ...doc, status: 'Signed', statusColor: 'bg-emerald-500/20 text-emerald-400' } : doc)
-    localStorage.setItem('employeeDocuments', JSON.stringify(updatedDocs))
+  const startDrawing = (e: any) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-    setViewingContract(null) // Return to list
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+
+    ctx.beginPath()
+    ctx.moveTo(clientX - rect.left, clientY - rect.top)
+    setIsDrawing(true)
+  }
+
+  const draw = (e: any) => {
+    if (!isDrawing) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    if (e.type === 'touchmove') e.preventDefault() // Prevent scrolling on touch
+
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+
+    ctx.lineTo(clientX - rect.left, clientY - rect.top)
+    ctx.stroke()
+  }
+
+  const endDrawing = () => {
+    setIsDrawing(false)
+  }
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      ctx?.clearRect(0, 0, canvas.width, canvas.height)
+    }
+  }
+
+  const handleSaveSignature = () => {
+    if (canvasRef.current) {
+      const dataUrl = canvasRef.current.toDataURL()
+
+      // Store signature temporarily in the contract object
+      setContractsList(prev => prev.map(c => {
+        if (c.id === viewingContract) {
+          return { ...c, tempSignature: dataUrl }
+        }
+        return c
+      }))
+
+      setIsSignDialogOpen(false)
+    }
+  }
+
+  const handleFinalizeContract = () => {
+    if (!viewingContract) return
+    const contract = contractsList.find(c => c.id === viewingContract)
+    if (!contract?.tempSignature) return
+
+    // Finalize contract status and move temp signature to permanent
+    setContractsList(prev => prev.map(c => {
+      if (c.id === viewingContract) {
+        return {
+          ...c,
+          status: "Signed",
+          statusColor: "bg-emerald-500/20 text-emerald-400",
+          signature: c.tempSignature,
+          tempSignature: undefined
+        }
+      }
+      return c
+    }))
+
+    // Update history
+    const now = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    setHistoryList(prev => [
+      { action: `${contract.name} Signed`, date: now, type: "Contract" },
+      ...prev
+    ])
+
+    toast.success("Contract signed successfully", {
+      description: `${contract.name} status updated to Signed.`
+    })
+
+    setViewingContract(null)
   }
 
   const equityGrants = [
@@ -96,25 +208,91 @@ export function EmployeeContracts() {
     }
   ]
 
-  const history = [
+  const [historyList, setHistoryList] = useState([
     { action: "Contract Amendment Signed", date: "Mar 10, 2024", type: "Contract" },
     { action: "Equity Grant Received", date: "Jan 10, 2024", type: "Equity" },
     { action: "Annual Review Completed", date: "Dec 15, 2023", type: "Review" },
     { action: "Promotion Letter Issued", date: "Jul 1, 2023", type: "Contract" }
-  ]
+  ])
 
-  const aiMessages = [
+  // AI Contract Assistant state
+  const [aiChatMessages, setAiChatMessages] = useState<{ sender: string; content: string }[]>([
     {
       sender: "bot",
       content: "Hi! I've analyzed the Employment Contract. Here's a quick summary:\n\n• Salary Increase: Base salary up to $145k\n• Bonus: 15% performance bonus target\n• Equity: 1,200 new stock options\n• Remote Work: 3 days/week allowed\n\nDo you have any specific questions about these clauses?"
     }
+  ])
+  const [aiInput, setAiInput] = useState("")
+  const [showFaqButtons, setShowFaqButtons] = useState(true)
+  const aiScrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when new messages added
+  useEffect(() => {
+    if (aiScrollRef.current) {
+      aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight
+    }
+  }, [aiChatMessages])
+
+  const faqItems = [
+    {
+      question: "What is my new salary?",
+      answer: "According to **Section 2 (Compensation)** of the amendment:\n\n**a) Base Salary:** Your annual base salary will be increased to **$145,000 per annum**, payable in accordance with the Company's standard payroll practices.\n\n**b) Performance Bonus:** You will be eligible for an annual performance bonus of up to **15%** of your base salary, subject to achievement of individual and company performance targets."
+    },
+    {
+      question: "How many stock options do I get?",
+      answer: "According to **Section 3 (Equity)** of the amendment:\n\nYou will be granted **1,200 new stock options** under the Company's Employee Stock Option Plan, vesting over **3 years** with **quarterly vesting**.\n\nThis is in addition to any existing equity grants you may hold."
+    },
+    {
+      question: "What is the remote work policy?",
+      answer: "According to **Section 4 (Remote Work)** of the amendment:\n\nYou are approved to work remotely up to **3 days per week**, subject to the Company's Remote Work Policy.\n\nThis means you're expected to be in-office for a minimum of 2 days per week."
+    },
+    {
+      question: "What happens to my other terms?",
+      answer: "According to **Section 5 (Other Terms)** of the amendment:\n\nAll other terms and conditions of your employment **remain unchanged** and continue to apply. This includes your existing benefits, leave entitlements, and any previously signed agreements like your NDA."
+    },
+    {
+      question: "When does this take effect?",
+      answer: "The amendment is effective from **March 1, 2026**, as stated in the introduction of the offer letter.\n\nThe document was issued on **February 7, 2026**, giving you time to review and sign before the effective date."
+    }
   ]
+
+  const handleFaqClick = (faq: { question: string; answer: string }) => {
+    setShowFaqButtons(false)
+    setAiChatMessages(prev => [
+      ...prev,
+      { sender: "user", content: faq.question },
+      { sender: "bot", content: faq.answer }
+    ])
+  }
+
+  const handleAiInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!aiInput.trim()) return
+    const question = aiInput.trim()
+    setAiInput("")
+    setShowFaqButtons(false)
+
+    // Check if it matches a FAQ
+    const matchedFaq = faqItems.find(f =>
+      f.question.toLowerCase().includes(question.toLowerCase()) ||
+      question.toLowerCase().includes(f.question.toLowerCase().replace("?", ""))
+    )
+
+    setAiChatMessages(prev => [
+      ...prev,
+      { sender: "user", content: question },
+      {
+        sender: "bot",
+        content: matchedFaq
+          ? matchedFaq.answer
+          : "I can help you understand the clauses in this contract. Try asking about your **salary**, **stock options**, **remote work policy**, or **effective date**."
+      }
+    ])
+  }
 
   // Contract Viewer
   if (viewingContract) {
-    const contract = contracts.find(c => c.id === viewingContract)
-    const isGenerated = contract?.content
-
+    const contract = contractsList.find(c => c.id === viewingContract)
     return (
       <div className="p-8">
         <div className="flex items-center justify-between mb-6">
@@ -128,22 +306,30 @@ export function EmployeeContracts() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="gap-2 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10">
-              <Sparkles className="h-4 w-4" />
-              Negotiate with AI
-            </Button>
+            {/* Negotiate with AI button removed */}
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Download PDF
             </Button>
             {contract?.status === "Pending Signature" && (
-              <Button
-                onClick={() => contract && handleSignContract(contract.id)}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <CheckCircle className="h-4 w-4" />
-                Accept & Sign
-              </Button>
+              <>
+                {!contract?.tempSignature ? (
+                  <Button
+                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+                    onClick={() => setIsSignDialogOpen(true)}
+                  >
+                    Accept & Sign
+                  </Button>
+                ) : (
+                  <Button
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg animate-pulse"
+                    onClick={handleFinalizeContract}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Confirm & Finalize
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -153,70 +339,20 @@ export function EmployeeContracts() {
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="p-8">
-                {isGenerated ? (
-                  <iframe
-                    srcDoc={contract.content}
-                    className="w-full h-[calc(100vh-280px)] border rounded-lg bg-white"
-                    title="Document Preview"
+                <ScrollArea className="h-[calc(100vh-280px)] bg-muted/30 p-4 rounded-lg">
+                  <ContractContent
+                    highlightSectionId={highlight?.section_id}
+                    signatureUrl={contract?.signature || contract?.tempSignature}
+                    isSigned={contract?.status === 'Signed'}
                   />
-                ) : (
-                  <ScrollArea className="h-[calc(100vh-280px)]">
-                    <div className="max-w-2xl mx-auto space-y-6 text-sm leading-relaxed">
-                      <h2 className="text-center font-bold text-lg tracking-wider">OFFER LETTER AMENDMENT</h2>
 
-                      <p>Date: February 7, 2026</p>
-                      <p>Dear Employee,</p>
-
-                      <p className="font-bold">RE: AMENDMENT TO EMPLOYMENT TERMS</p>
-
-                      <p>We are pleased to confirm the following amendments to your employment terms with ZeroHR (the &quot;Company&quot;), effective from March 1, 2026.</p>
-
-                      <div className="space-y-4">
-                        <div>
-                          <h3 className="font-bold">1. POSITION AND REPORTING</h3>
-                          <p>Your position remains as Senior Product Designer. You will continue to report to the Head of Design.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold">2. COMPENSATION</h3>
-                          <p>a) Base Salary: Your annual base salary will be increased to $145,000 per annum, payable in accordance with the Company&apos;s standard payroll practices.</p>
-                          <p className="mt-2">b) Performance Bonus: You will be eligible for an annual performance bonus of up to 15% of your base salary, subject to achievement of individual and company performance targets.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold">3. EQUITY</h3>
-                          <p>You will be granted 1,200 new stock options under the Company&apos;s Employee Stock Option Plan, vesting over 3 years with quarterly vesting.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold">4. REMOTE WORK</h3>
-                          <p>You are approved to work remotely up to 3 days per week, subject to the Company&apos;s Remote Work Policy.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold">5. OTHER TERMS</h3>
-                          <p>All other terms and conditions of your employment remain unchanged and continue to apply.</p>
-                        </div>
-                      </div>
-
-                      <div className="pt-6">
-                        <p>Please confirm your acceptance by signing below.</p>
-                        <div className="mt-8 space-y-4">
-                          <div>
-                            <p className="font-bold">For ZeroHR</p>
-                            <div className="mt-2 border-b border-border w-48">&nbsp;</div>
-                            <p className="text-muted-foreground text-xs mt-1">Authorized Signatory</p>
-                          </div>
-                          <div>
-                            <p className="font-bold">Employee Acceptance</p>
-                            <div className="mt-2 border-b border-border w-48">&nbsp;</div>
-                            <p className="text-muted-foreground text-xs mt-1">Signature & Date</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </ScrollArea>
-                )}
+                  {/* Bottom Actions */}
+                  <div className="flex justify-end pt-8 pb-12 print:hidden gap-3">
+                    <Button variant="outline" onClick={() => setViewingContract(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </div>
@@ -235,27 +371,95 @@ export function EmployeeContracts() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ScrollArea className="flex-1 mb-4">
-                  <div className="space-y-4">
-                    {aiMessages.map((msg, index) => (
-                      <div key={index} className="p-4 rounded-lg bg-secondary/50">
-                        <p className="text-sm leading-relaxed whitespace-pre-line">{msg.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="mt-auto">
-                  <Input
-                    placeholder="Ask about a clause..."
-                    className="bg-secondary border-border"
-                  />
+              <CardContent className="flex-1 flex flex-col overflow-hidden">
+                <div ref={aiScrollRef} className="flex-1 overflow-y-auto mb-4 space-y-3 pr-1">
+                  {aiChatMessages.map((msg, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "p-3 rounded-lg text-sm leading-relaxed",
+                        msg.sender === "user"
+                          ? "bg-primary text-primary-foreground ml-6"
+                          : "bg-secondary/50 mr-2"
+                      )}
+                    >
+                      <p className="whitespace-pre-line"
+                        dangerouslySetInnerHTML={{
+                          __html: msg.content
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        }}
+                      />
+                    </div>
+                  ))}
+
+                  {/* FAQ Buttons */}
+                  {showFaqButtons && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">
+                        Frequently Asked
+                      </p>
+                      {faqItems.map((faq, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleFaqClick(faq)}
+                          className="w-full text-left px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-primary/5 hover:border-primary/30 transition-all text-sm text-foreground/80 hover:text-foreground group"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-primary/60 group-hover:text-primary text-xs">▸</span>
+                            {faq.question}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                <form onSubmit={handleAiInputSubmit} className="mt-auto flex gap-2">
+                  <Input
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    placeholder="Ask about a clause..."
+                    className="bg-secondary border-border flex-1"
+                  />
+                  <Button type="submit" size="icon" variant="ghost" className="shrink-0">
+                    <Sparkles className="h-4 w-4 text-emerald-500" />
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </div>
         </div>
-      </div>
+
+        {/* Signature Dialog */}
+        <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sign Contract</DialogTitle>
+              <DialogDescription>
+                Please sign inside the box below to accept the contract terms.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-1 border rounded-lg bg-slate-50">
+              <canvas
+                ref={canvasRef}
+                width={400}
+                height={200}
+                className="bg-white rounded-md touch-none cursor-crosshair w-full h-[200px]"
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={endDrawing}
+                onMouseLeave={endDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={endDrawing}
+              />
+            </div>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Button variant="ghost" onClick={clearSignature} className="text-muted-foreground hover:text-destructive">Clear Pad</Button>
+              <Button onClick={handleSaveSignature} className="bg-primary text-primary-foreground">Confirm & Finalize</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div >
     )
   }
 
@@ -289,7 +493,7 @@ export function EmployeeContracts() {
         </TabsList>
 
         <TabsContent value="contracts" className="space-y-4">
-          {contracts.map((contract, index) => (
+          {contractsList.map((contract, index) => (
             <Card key={index} className="">
               <CardContent className="flex items-center justify-between p-6">
                 <div className="flex items-center gap-4">
@@ -424,7 +628,7 @@ export function EmployeeContracts() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-          {history.map((item, index) => (
+          {historyList.map((item, index) => (
             <Card key={index} className="">
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="p-3 rounded-lg bg-secondary">
@@ -442,6 +646,37 @@ export function EmployeeContracts() {
           ))}
         </TabsContent>
       </Tabs>
+
+      {/* Signature Dialog */}
+      <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sign Contract</DialogTitle>
+            <DialogDescription>
+              Please sign inside the box below to accept the contract terms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-1 border rounded-lg bg-slate-50">
+            <canvas
+              ref={canvasRef}
+              width={400}
+              height={200}
+              className="bg-white rounded-md touch-none cursor-crosshair w-full h-[200px]"
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={endDrawing}
+              onMouseLeave={endDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={endDrawing}
+            />
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+            <Button variant="ghost" onClick={clearSignature} className="text-muted-foreground hover:text-destructive">Clear Pad</Button>
+            <Button onClick={handleSaveSignature} className="bg-primary text-primary-foreground">Confirm & Finalize</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

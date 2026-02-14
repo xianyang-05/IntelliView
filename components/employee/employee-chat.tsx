@@ -1,33 +1,53 @@
 "use client"
 
-import { useState } from "react"
-import { MessageSquare, Send, Bot, User, History, X } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { MessageSquare, Send, Bot, User, History, X, Loader2, Briefcase, CalendarDays, Receipt, Globe, FileText, HelpCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ContractContent } from "./contract-content"
 
-export function EmployeeChat() {
+interface ChatMessage {
+  id: number
+  sender: "bot" | "user"
+  content: string
+  timestamp: string
+  source?: string | null
+  confidence?: string
+  actions?: { label: string, page: string, type?: string, payload?: any }[]
+}
+
+const QUICK_SUGGESTIONS = [
+  { label: "🏖️ Leave Balance", query: "What is my current leave balance?", icon: CalendarDays },
+  { label: "📈 What is my equity?", query: "What is my equity?", icon: Globe },
+  { label: "💰 Salary & Deductions", query: "Show me my salary breakdown and deductions", icon: Briefcase },
+  { label: "🧾 Expense Claims", query: "How do I submit an expense claim?", icon: Receipt },
+  { label: "📋 Benefits Overview", query: "What employee benefits are available?", icon: FileText },
+  { label: "❓ General HR Help", query: "What HR services can you help me with?", icon: HelpCircle },
+]
+
+interface EmployeeChatProps {
+  onNavigate?: (page: string, payload?: any) => void
+  userEmail?: string
+  userRole?: string
+}
+
+export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatProps) {
   const [message, setMessage] = useState("")
   const [showHistory, setShowHistory] = useState(false)
-  const [messages, setMessages] = useState([
+  const [isLoading, setIsLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(true)
+  const [viewingProof, setViewingProof] = useState(false)
+  const [proofSection, setProofSection] = useState<string | undefined>(undefined)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
       sender: "bot",
-      content: "Hello! I'm your HR assistant. How can I help you today?",
-      timestamp: "10:00 AM"
-    },
-    {
-      id: 2,
-      sender: "user",
-      content: "What's the policy for remote work?",
-      timestamp: "10:01 AM"
-    },
-    {
-      id: 3,
-      sender: "bot",
-      content: "Our remote work policy allows employees to work from home up to 3 days per week. You'll need to coordinate with your team lead and ensure you're available during core hours (10 AM - 4 PM). Would you like more details?",
-      timestamp: "10:01 AM"
+      content: "Hello! I'm your HR assistant powered by AI. I can help you with company policies, leave balances, salary info, and more. How can I help you today?",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ])
 
@@ -38,17 +58,88 @@ export function EmployeeChat() {
     { title: "Remote work setup", date: "2 weeks ago", messages: 10 }
   ]
 
-  const handleSend = () => {
-    if (!message.trim()) return
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, isLoading])
 
-    setMessages([...messages, {
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return
+
+    const userMessage = text.trim()
+    setMessage("")
+    setShowSuggestions(false)
+
+    // Add user message to chat
+    const userMsg: ChatMessage = {
       id: messages.length + 1,
       sender: "user",
-      content: message,
+      content: userMessage,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }])
-    setMessage("")
+    }
+    setMessages(prev => [...prev, userMsg])
+    setIsLoading(true)
+
+    try {
+      // Build conversation history for context
+      const history = messages
+        .filter(m => m.id > 1) // skip the initial greeting
+        .map(m => ({
+          role: m.sender === "user" ? "user" : "assistant",
+          content: m.content
+        }))
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          model: "claude-sonnet-4",
+          user_email: userEmail || "alex.chan@zerohr.com",
+          user_role: userRole || "employee",
+          history: history
+        })
+      })
+
+      const data = await response.json()
+
+      // Use actions from backend if provided, otherwise fallback to empty array
+      const backendActions = data.actions || []
+      const actions = backendActions.map((action: any) => ({
+        label: action.label,
+        page: action.type === 'view_proof' ? 'contracts' : 'requests',
+        type: action.type,
+        payload: action.payload
+      }))
+
+      const botMsg: ChatMessage = {
+        id: messages.length + 2,
+        sender: "bot",
+        content: data.response || "Sorry, I couldn't process that request.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        source: data.source,
+        confidence: data.confidence,
+        actions: actions.length > 0 ? actions : undefined
+      }
+      setMessages(prev => [...prev, botMsg])
+    } catch (error) {
+      console.error("Chat error:", error)
+      const errorMsg: ChatMessage = {
+        id: messages.length + 2,
+        sender: "bot",
+        content: "⚠️ Could not connect to the AI server. Please make sure the backend is running (`python backend/server.py`).",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+      setMessages(prev => [...prev, errorMsg])
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  const handleSend = () => sendMessage(message)
+  const handleSuggestionClick = (query: string) => sendMessage(query)
 
   return (
     <div className="flex h-full relative">
@@ -109,7 +200,7 @@ export function EmployeeChat() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-6">
+        <ScrollArea className="flex-1 p-6" ref={scrollRef}>
           <div className="space-y-6 max-w-3xl mx-auto">
             {messages.map((msg) => (
               <div
@@ -129,12 +220,78 @@ export function EmployeeChat() {
                     ? 'bg-secondary text-foreground'
                     : 'bg-primary text-primary-foreground'
                     }`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{msg.timestamp}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-muted-foreground">{msg.timestamp}</p>
+                    {msg.source && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        📎 {msg.source}
+                      </span>
+                    )}
+                    {msg.confidence && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${msg.confidence === 'high' ? 'bg-green-500/10 text-green-600' : 'bg-yellow-500/10 text-yellow-600'
+                        }`}>
+                        {msg.confidence === 'high' ? '✓ High confidence' : '○ Medium confidence'}
+                      </span>
+                    )}
+                  </div>
+                  {/* Action Buttons */}
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3 ml-1">
+                      {msg.actions.map((action, idx) => (
+                        <Button
+                          key={idx}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 border-primary/20 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() => {
+                            if (action.type === 'view_proof' || action.payload?.section_id) {
+                              setProofSection(action.payload?.section_id)
+                              setViewingProof(true)
+                            } else {
+                              onNavigate?.(action.page, action.payload)
+                            }
+                          }}
+                        >
+                          {action.label === 'Request Action' && <Send className="h-3.5 w-3.5" />}
+                          {action.label.includes('View') && <FileText className="h-3.5 w-3.5" />}
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+            {/* Quick Suggestion Chips */}
+            {showSuggestions && messages.length === 1 && !isLoading && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 pb-2 max-w-xl">
+                {QUICK_SUGGESTIONS.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion.query)}
+                    className="flex items-center gap-2 px-3 py-2.5 text-left text-sm rounded-xl border border-border bg-card hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 shadow-sm hover:shadow-md group"
+                  >
+                    <span className="text-base">{suggestion.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="flex gap-3">
+                <div className="p-2 rounded-lg h-fit bg-primary/10">
+                  <Bot className="h-5 w-5 text-primary" />
+                </div>
+                <div className="inline-block p-4 rounded-lg bg-secondary">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Thinking...
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
 
@@ -142,18 +299,36 @@ export function EmployeeChat() {
         <div className="border-t p-6">
           <div className="max-w-3xl mx-auto flex gap-3">
             <Input
-              placeholder="Type your message..."
+              placeholder="Ask about policies, leave, salary, expenses..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
               className="flex-1"
+              disabled={isLoading}
             />
-            <Button onClick={handleSend} size="icon">
-              <Send className="h-4 w-4" />
+            <Button onClick={handleSend} size="icon" disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Proof Dialog */}
+      <Dialog open={viewingProof} onOpenChange={setViewingProof}>
+        <DialogContent className="max-w-2xl h-[600px] flex flex-col sm:rounded-2xl">
+          <DialogHeader className="pb-2 border-b">
+            <DialogTitle>Contract Proof</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="py-6">
+              <ContractContent highlightSectionId={proofSection} />
+            </div>
+          </ScrollArea>
+          <div className="pt-2 border-t flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setViewingProof(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div >
   )
 }

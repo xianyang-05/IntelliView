@@ -30,9 +30,15 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-export function HrEmployeePortal() {
+export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [isHrMode, setIsHrMode] = useState(false)
   const [activePage, setActivePage] = useState("home")
+  const [navPayload, setNavPayload] = useState<any>(null)
+
+  const handleNavigate = (page: string, payload?: any) => {
+    setActivePage(page)
+    if (payload) setNavPayload(payload)
+  }
 
   const employeeNav = [
     { id: "home", label: "Home", icon: Home },
@@ -184,9 +190,13 @@ export function HrEmployeePortal() {
         case "home":
           return <EmployeeHome />
         case "contracts":
-          return <EmployeeContracts />
+          return <EmployeeContracts highlight={navPayload} />
         case "chat":
-          return <EmployeeChat />
+          return <EmployeeChat
+            onNavigate={handleNavigate}
+            userEmail={currentUser?.email}
+            userRole={currentUser?.role}
+          />
         case "requests":
           return <EmployeeRequests />
         case "compliance":
@@ -241,7 +251,7 @@ export function HrEmployeePortal() {
               checked={isHrMode}
               onCheckedChange={(checked) => {
                 setIsHrMode(checked)
-                setActivePage(checked ? "dashboard" : "home")
+                handleNavigate(checked ? "dashboard" : "home")
               }}
             />
           </div>
