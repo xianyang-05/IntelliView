@@ -145,7 +145,7 @@ export function HrCompliance() {
                   <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
                   <p className={`text-4xl font-bold ${stat.color}`}>{stat.value}</p>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bg}`}>
+                <div className={`p-3 rounded-xl ${stat.bg}`}>
                   <Shield className={`h-6 w-6 ${stat.color}`} />
                 </div>
               </div>
@@ -253,7 +253,14 @@ export function HrCompliance() {
       </h2>
       <div className="grid md:grid-cols-3 gap-6 mb-8">
         {complianceUpdates.map((update, index) => (
-          <Card key={index} className="cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group" onClick={() => handleOpenUpdate(update)}>
+          <Card key={index} className="cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group overflow-hidden" onClick={() => handleOpenUpdate(update)}>
+            <div className="h-32 w-full overflow-hidden">
+              <img
+                src={update.image || "/placeholder.jpg"}
+                alt={update.title}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            </div>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start mb-2">
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{update.source}</Badge>

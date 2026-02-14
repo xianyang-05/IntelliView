@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp } from "lucide-react"
+import { User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -99,8 +99,8 @@ export function HrEmployeePortal() {
       <aside className="w-64 border-r bg-card flex flex-col">
         <div className="p-6 border-b">
           <div className="flex items-center gap-2 mb-4">
-            <Building2 className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold">PeopleHub</span>
+            <img src="/logo.png" alt="ZeroHR Logo" className="h-8 w-8 object-contain" />
+            <span className="text-xl font-semibold">ZeroHR</span>
           </div>
 
           {/* Portal Toggle */}
