@@ -304,6 +304,12 @@ def get_employee_context(email: str, role: str, question: str) -> str:
         except Exception as e:
             print(f"⚠️  Compliance alert query error: {e}")
 
+    # ── Manager: Own data + direct reports ──
+    if role == "manager":
+        mgr_context = get_manager_context(email, question_lower)
+        if mgr_context:
+            context_parts.append(mgr_context)
+
     # ── HR Admin: Team-wide data ──
     if role == "hr_admin":
         hr_context = get_hr_admin_context(question_lower)
@@ -429,6 +435,131 @@ def get_hr_admin_context(question_lower: str) -> str:
     return "\n\n".join(parts)
 
 
+def get_manager_context(manager_email: str, question_lower: str) -> str:
+    """Get data for manager's direct reports."""
+    parts = []
+
+    # Find the manager in employees table
+    manager = get_employee_by_email(manager_email)
+    if not manager:
+        return ""
+
+    manager_id = manager["id"]
+
+    # Get direct reports
+    try:
+        reports_resp = supabase.table("employees") \
+            .select("*") \
+            .eq("manager_id", manager_id) \
+            .execute()
+        direct_reports = reports_resp.data or []
+    except Exception as e:
+        print(f"⚠️  Manager reports query error: {e}")
+        return ""
+
+    if not direct_reports:
+        parts.append("[Direct Reports]\nYou have no direct reports currently assigned.")
+        return "\n\n".join(parts)
+
+    # Build report list
+    report_names = [f"{r['first_name']} {r['last_name']}" for r in direct_reports]
+    parts.append(f"[Direct Reports ({len(direct_reports)})]\n" + "\n".join(
+        f"  - {r['first_name']} {r['last_name']} ({r.get('job_title', 'N/A')}, {r.get('department', 'N/A')})"
+        for r in direct_reports
+    ))
+
+    report_ids = [r["id"] for r in direct_reports]
+
+    # Leave balances for direct reports
+    if any(kw in question_lower for kw in ["leave", "day off", "vacation", "annual", "sick", "time off", "pto", "team", "report"]):
+        try:
+            for report in direct_reports:
+                lb_resp = supabase.table("leave_balances") \
+                    .select("*, leave_types(display_name)") \
+                    .eq("employee_id", report["id"]) \
+                    .eq("year", 2026) \
+                    .execute()
+                if lb_resp.data:
+                    name = f"{report['first_name']} {report['last_name']}"
+                    info = f"[Leave Balances for {name}]\n"
+                    for lb in lb_resp.data:
+                        lt = lb.get("leave_types", {})
+                        lt_name = lt.get("display_name", "Unknown") if lt else "Unknown"
+                        total = lb.get("total_days", 0)
+                        used = lb.get("used_days", 0)
+                        pending = lb.get("pending_days", 0)
+                        remaining = float(total) - float(used) - float(pending)
+                        info += f"  {lt_name}: {remaining} days remaining (total: {total}, used: {used}, pending: {pending})\n"
+                    parts.append(info)
+        except Exception as e:
+            print(f"⚠️  Manager leave query error: {e}")
+
+    # Salary info for direct reports
+    if any(kw in question_lower for kw in ["salary", "pay", "compensation", "team", "report"]):
+        try:
+            for report in direct_reports:
+                ct_resp = supabase.table("contracts") \
+                    .select("*") \
+                    .eq("employee_id", report["id"]) \
+                    .eq("is_active", True) \
+                    .execute()
+                if ct_resp.data:
+                    c = ct_resp.data[0]
+                    name = f"{report['first_name']} {report['last_name']}"
+                    parts.append(
+                        f"[Salary Info for {name}]\n"
+                        f"  Base Salary: {c.get('currency', 'MYR')} {c.get('base_salary', 'N/A')}/month\n"
+                        f"  Contract Type: {c.get('contract_type', 'N/A')}\n"
+                        f"  Allowances: {json.dumps(c.get('allowances', {}))}"
+                    )
+        except Exception as e:
+            print(f"⚠️  Manager salary query error: {e}")
+
+    # Expense claims for direct reports
+    if any(kw in question_lower for kw in ["expense", "claim", "reimbursement", "team", "report"]):
+        try:
+            for report in direct_reports:
+                exp_resp = supabase.table("expense_claims") \
+                    .select("*") \
+                    .eq("employee_id", report["id"]) \
+                    .order("claim_date", desc=True) \
+                    .limit(3) \
+                    .execute()
+                if exp_resp.data:
+                    name = f"{report['first_name']} {report['last_name']}"
+                    info = f"[Expense Claims for {name}]\n"
+                    for ex in exp_resp.data:
+                        info += f"  {ex.get('claim_date')}: {ex.get('category')} - MYR {ex.get('amount')} ({ex.get('status')})\n"
+                    parts.append(info)
+        except Exception as e:
+            print(f"⚠️  Manager expense query error: {e}")
+
+    # Performance reviews for direct reports
+    if any(kw in question_lower for kw in ["performance", "review", "rating", "team", "report"]):
+        try:
+            for report in direct_reports:
+                pr_resp = supabase.table("performance_reviews") \
+                    .select("*") \
+                    .eq("employee_id", report["id"]) \
+                    .order("review_period_end", desc=True) \
+                    .limit(1) \
+                    .execute()
+                if pr_resp.data:
+                    name = f"{report['first_name']} {report['last_name']}"
+                    pr = pr_resp.data[0]
+                    parts.append(
+                        f"[Latest Performance Review for {name}]\n"
+                        f"  Period: {pr.get('review_period_start')} to {pr.get('review_period_end')}\n"
+                        f"  Overall Rating: {pr.get('overall_rating', 'N/A')}/5\n"
+                        f"  Strengths: {pr.get('strengths', 'N/A')}\n"
+                        f"  Areas for Improvement: {pr.get('areas_for_improvement', 'N/A')}"
+                    )
+        except Exception as e:
+            print(f"⚠️  Manager performance query error: {e}")
+
+    return "\n\n".join(parts)
+
+
 def build_system_prompt(role: str, rag_context: str, employee_context: str, sources: list[str]) -> str:
     """Build a role-aware system prompt with RAG context injected."""
 
@@ -464,6 +595,17 @@ YOUR USER IS AN HR ADMIN. They can:
 - View team-wide dashboards, pending approvals, and compliance alerts across the organization.
 - Ask about policy management, review dates, and compliance status.
 - When they ask about a specific employee, provide that employee's detailed data.
+"""
+    elif role == "manager":
+        base += """
+YOUR USER IS A MANAGER. They can:
+- Query their OWN data (leave balance, salary, contract, expenses).
+- Query their DIRECT REPORTS' data (leave, salary, performance, expenses).
+- Ask about general company policies.
+- Get team-level summaries and insights.
+- You must NEVER reveal data about employees who are NOT their direct reports.
+- If asked about an employee NOT in their team, politely decline and say:
+  "I can only provide information about your own records and your direct reports."
 """
     else:
         base += """
@@ -523,14 +665,15 @@ MOCK_USERS = [
 
 
 @app.get("/api/users")
-async def get_users(role: str = None):
-    """Return user directory from database filtered by role."""
+async def get_users(role: str = None, all: bool = False):
+    """Return user directory from database filtered by role, or all users."""
     try:
         query = supabase.table("users").select("*")
-        if role == "hr":
-            query = query.eq("role", "employee")
-        elif role == "employee":
-            query = query.eq("role", "hr_admin")
+        if not all:
+            if role == "hr":
+                query = query.eq("role", "employee")
+            elif role == "employee":
+                query = query.eq("role", "hr_admin")
         
         response = query.execute()
         return {"users": response.data}

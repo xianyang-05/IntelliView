@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp, Calendar } from "lucide-react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -18,6 +18,8 @@ import { HrCompliance } from "./hr/hr-compliance"
 import { HrVersionControl } from "./hr/hr-version-control"
 import { HrPerformance } from "./hr/hr-performance-main"
 import { EmployeeProfile } from "./employee/employee-profile"
+import { HrInterviewCenter } from "./hr/hr-interview-center"
+import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
 import {
   DropdownMenu,
@@ -115,6 +117,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const hrNav = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "interviews", label: "Interview Center", icon: Users },
     { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
     { id: "workflows", label: "Workflows", icon: Workflow },
     { id: "compliance", label: "Compliance & Audit", icon: Shield },
@@ -192,6 +195,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   // Global Popup State
   const [showVisaRenewalModal, setShowVisaRenewalModal] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
+  const [showOfferLetterModal, setShowOfferLetterModal] = useState(false)
+  const [offerDetails, setOfferDetails] = useState<any>(null)
 
   useEffect(() => {
     // Check for global events when not in HR mode
@@ -205,6 +210,11 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
         if (events.review_scheduled && !events.review_accepted) {
           setShowReviewModal(true)
+        }
+
+        if (events.offer_letter_received && !events.offer_letter_viewed) {
+          setOfferDetails(events.offer_details)
+          setShowOfferLetterModal(true)
         }
       }
 
@@ -276,6 +286,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       switch (activePage) {
         case "dashboard":
           return <HrDashboard />
+        case "interviews":
+          return <HrInterviewCenter onNavigate={setActivePage} />
         case "performance":
           return <HrPerformance />
         case "contract-gen":
@@ -294,175 +306,179 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="w-64 border-r bg-card flex flex-col">
-        <div className="p-6 border-b">
-          <div className="flex items-center gap-2 mb-4">
-            <img src="/logo.png" alt="ZeroHR Logo" className="h-8 w-8 object-contain" />
-            <span className="text-xl font-semibold">ZeroHR</span>
-          </div>
-
-          {/* Portal Toggle */}
-          <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <Label htmlFor="portal-toggle" className="text-sm font-medium cursor-pointer">
-                {isHrMode ? "HR Portal" : "Employee"}
-              </Label>
+      {/* Sidebar — hidden on Interview Center */}
+      {activePage !== "interviews" && (
+        <aside className="w-64 border-r bg-card flex flex-col">
+          <div className="p-6 border-b">
+            <div className="flex items-center gap-2 mb-4">
+              <img src="/logo.png" alt="ZeroHR Logo" className="h-8 w-8 object-contain" />
+              <span className="text-xl font-semibold">ZeroHR</span>
             </div>
-            <Switch
-              id="portal-toggle"
-              checked={isHrMode}
-              onCheckedChange={(checked) => {
-                setIsHrMode(checked)
-                handleNavigate(checked ? "dashboard" : "home")
-              }}
-            />
-          </div>
-        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
-          {currentNav.map((item) => (
-            <NavItem
-              key={item.id}
-              item={item}
-              isHrMode={isHrMode}
-              activePage={activePage}
-              notifications={notifications}
-              setActivePage={setActivePage}
-              setNotifications={setNotifications}
-            />
-          ))}
-        </nav>
-      </aside>
+            {/* Portal Toggle */}
+            <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="portal-toggle" className="text-sm font-medium cursor-pointer">
+                  {isHrMode ? "HR Portal" : "Employee"}
+                </Label>
+              </div>
+              <Switch
+                id="portal-toggle"
+                checked={isHrMode}
+                onCheckedChange={(checked) => {
+                  setIsHrMode(checked)
+                  handleNavigate(checked ? "dashboard" : "home")
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1">
+            {currentNav.map((item) => (
+              <NavItem
+                key={item.id}
+                item={item}
+                isHrMode={isHrMode}
+                activePage={activePage}
+                notifications={notifications}
+                setActivePage={setActivePage}
+                setNotifications={setNotifications}
+              />
+            ))}
+          </nav>
+        </aside>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 relative overflow-hidden flex flex-col">
-        {/* Top Toolbar */}
-        <header className="h-16 border-b bg-background flex items-center justify-between px-6 shrink-0">
-          <h2 className="text-lg font-semibold">
-            {currentNav.find(n => n.id === activePage)?.label || "Dashboard"}
-          </h2>
-          <div className="flex items-center gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
-                  <Bell className="h-5 w-5" />
-                  {notifications.length > 0 && (
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-80" align="end">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {notifications.length === 0 ? (
-                  <div className="p-4 text-sm text-muted-foreground text-center">No new notifications</div>
-                ) : (
-                  notifications.map((notif, i) => (
-                    <DropdownMenuItem key={i} onClick={() => handleViewNotification(notif)} className="cursor-pointer flex justify-between items-start group">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-medium text-sm">{notif.title || notif.type + ' Update'}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {notif.message || (isHrMode ? `${notif.employee} submitted info` : "HR sent an update")}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 -mr-2"
-                        onClick={(e) => handleDeleteNotification(e, notif.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Notification Details Modal */}
-            <Dialog open={isNotificationModalOpen} onOpenChange={setIsNotificationModalOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Bell className="h-5 w-5 text-primary" />
-                    {selectedNotification?.title || 'Notification Details'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {selectedNotification?.timestamp && new Date(selectedNotification.timestamp).toLocaleString()}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="py-4 space-y-4">
-                  <div className="p-4 bg-secondary/30 rounded-lg border">
-                    <p className="text-sm leading-relaxed">{selectedNotification?.message}</p>
-                  </div>
-
-                  {selectedNotification?.type === 'document' && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded">
-                      <FileText className="h-4 w-4" />
-                      <span>Document available for review</span>
-                    </div>
-                  )}
-
-                  {selectedNotification?.type === 'request_info' && (
-                    <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Action required from you</span>
-                    </div>
-                  )}
-                </div>
-
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsNotificationModalOpen(false)}>Close</Button>
-                  <Button onClick={handleRedirect}>
-                    Go to {
-                      selectedNotification?.type === 'document' ? 'Contracts' :
-                        selectedNotification?.type === 'request_info' ? 'Requests' :
-                          selectedNotification?.type === 'info_submitted' ? 'Workflows' :
-                            'Section'
-                    }
+        {/* Top Toolbar — hidden on Interview Center */}
+        {activePage !== "interviews" && (
+          <header className="h-16 border-b bg-background flex items-center justify-between px-6 shrink-0">
+            <h2 className="text-lg font-semibold">
+              {currentNav.find(n => n.id === activePage)?.label || "Dashboard"}
+            </h2>
+            <div className="flex items-center gap-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+                    <Bell className="h-5 w-5" />
+                    {notifications.length > 0 && (
+                      <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                    )}
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80" align="end">
+                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">No new notifications</div>
+                  ) : (
+                    notifications.map((notif, i) => (
+                      <DropdownMenuItem key={i} onClick={() => handleViewNotification(notif)} className="cursor-pointer flex justify-between items-start group">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium text-sm">{notif.title || notif.type + ' Update'}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {notif.message || (isHrMode ? `${notif.employee} submitted info` : "HR sent an update")}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600 -mr-2"
+                          onClick={(e) => handleDeleteNotification(e, notif.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white/20 shadow-sm">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
-                    <AvatarFallback>AC</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Alex Chan</p>
-                    <p className="text-xs leading-none text-muted-foreground">alex.chan@zerohr.com</p>
+              {/* Notification Details Modal */}
+              <Dialog open={isNotificationModalOpen} onOpenChange={setIsNotificationModalOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Bell className="h-5 w-5 text-primary" />
+                      {selectedNotification?.title || 'Notification Details'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {selectedNotification?.timestamp && new Date(selectedNotification.timestamp).toLocaleString()}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="py-4 space-y-4">
+                    <div className="p-4 bg-secondary/30 rounded-lg border">
+                      <p className="text-sm leading-relaxed">{selectedNotification?.message}</p>
+                    </div>
+
+                    {selectedNotification?.type === 'document' && (
+                      <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded">
+                        <FileText className="h-4 w-4" />
+                        <span>Document available for review</span>
+                      </div>
+                    )}
+
+                    {selectedNotification?.type === 'request_info' && (
+                      <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 p-3 rounded">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Action required from you</span>
+                      </div>
+                    )}
                   </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { setActivePage("profile"); setIsHrMode(false) }}>
-                  <CircleUser className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </header>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsNotificationModalOpen(false)}>Close</Button>
+                    <Button onClick={handleRedirect}>
+                      Go to {
+                        selectedNotification?.type === 'document' ? 'Contracts' :
+                          selectedNotification?.type === 'request_info' ? 'Requests' :
+                            selectedNotification?.type === 'info_submitted' ? 'Workflows' :
+                              'Section'
+                      }
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white/20 shadow-sm">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
+                      <AvatarFallback>AC</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">Alex Chan</p>
+                      <p className="text-xs leading-none text-muted-foreground">alex.chan@zerohr.com</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { setActivePage("profile"); setIsHrMode(false) }}>
+                    <CircleUser className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </header>
+        )}
 
         {/* Visa Renewal Required Modal */}
         <Dialog open={showVisaRenewalModal} onOpenChange={setShowVisaRenewalModal}>
@@ -511,10 +527,87 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           </DialogContent>
         </Dialog>
 
+        {/* Offer Letter Received Popup (Employee Side) */}
+        <Dialog open={showOfferLetterModal} onOpenChange={setShowOfferLetterModal}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-emerald-600">
+                <FileText className="h-5 w-5" />
+                Offer Letter Received!
+              </DialogTitle>
+              <DialogDescription>
+                You have received a new offer letter from ZeroHR.
+              </DialogDescription>
+            </DialogHeader>
+            {offerDetails && (
+              <div className="py-4 space-y-4">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
+                  <div className="grid grid-cols-2 gap-y-2 text-sm">
+                    <span className="text-muted-foreground">Position:</span>
+                    <span className="font-medium">{offerDetails.position}</span>
+                    <span className="text-muted-foreground">Monthly Salary:</span>
+                    <span className="font-medium">RM {Number(offerDetails.salary).toLocaleString()}</span>
+                    <span className="text-muted-foreground">Start Date:</span>
+                    <span className="font-medium">{offerDetails.startDate ? new Date(offerDetails.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                    <span className="text-muted-foreground">Contract Type:</span>
+                    <span className="font-medium capitalize">{(offerDetails.contractType || '').replace('_', ' ')}</span>
+                    <span className="text-muted-foreground">Probation:</span>
+                    <span className="font-medium">{offerDetails.probation === '0' ? 'None' : offerDetails.probation + ' months'}</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-secondary/30 rounded-lg border">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Benefits</p>
+                  <p className="text-sm">{offerDetails.benefits}</p>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="gap-2 sm:gap-0 flex-col sm:flex-row">
+              <Button
+                variant="outline"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setShowOfferLetterModal(false)
+                  const events = JSON.parse(localStorage.getItem('global_events') || '{}')
+                  localStorage.setItem('global_events', JSON.stringify({ ...events, offer_letter_viewed: true }))
+                  alert('Offer declined. HR will be notified.')
+                }}
+              >
+                Decline
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowOfferLetterModal(false)
+                  const events = JSON.parse(localStorage.getItem('global_events') || '{}')
+                  localStorage.setItem('global_events', JSON.stringify({ ...events, offer_letter_viewed: true }))
+                  alert('Your request for changes has been sent to HR.')
+                }}
+              >
+                Request Changes
+              </Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => {
+                  setShowOfferLetterModal(false)
+                  const events = JSON.parse(localStorage.getItem('global_events') || '{}')
+                  localStorage.setItem('global_events', JSON.stringify({ ...events, offer_letter_viewed: true }))
+                  setActivePage('contracts')
+                  alert('Congratulations! Offer accepted. Redirecting to Contracts & Equity.')
+                }}
+              >
+                Accept Offer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
           {renderContent()}
         </div>
+
+        {/* Real-Time Chat Widget */}
+        <ChatWidget isHrMode={isHrMode} />
       </main>
     </div>
   )

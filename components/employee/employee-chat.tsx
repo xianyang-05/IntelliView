@@ -19,7 +19,7 @@ interface ChatMessage {
   actions?: { label: string, page: string, type?: string, payload?: any }[]
 }
 
-const QUICK_SUGGESTIONS = [
+const EMPLOYEE_SUGGESTIONS = [
   { label: "🏖️ Leave Balance", query: "What is my current leave balance?", icon: CalendarDays },
   { label: "📈 What is my equity?", query: "What is my equity?", icon: Globe },
   { label: "💰 Salary & Deductions", query: "Show me my salary breakdown and deductions", icon: Briefcase },
@@ -27,6 +27,36 @@ const QUICK_SUGGESTIONS = [
   { label: "📋 Benefits Overview", query: "What employee benefits are available?", icon: FileText },
   { label: "❓ General HR Help", query: "What HR services can you help me with?", icon: HelpCircle },
 ]
+
+const MANAGER_SUGGESTIONS = [
+  { label: "👥 My Direct Reports", query: "Show me my direct reports and their details", icon: Briefcase },
+  { label: "🏖️ Team Leave Summary", query: "How is my team's leave looking?", icon: CalendarDays },
+  { label: "💰 Team Salaries", query: "Show me my direct reports' salary information", icon: Globe },
+  { label: "🏖️ My Leave Balance", query: "What is my current leave balance?", icon: CalendarDays },
+  { label: "📋 Team Expenses", query: "Show me my team's recent expense claims", icon: Receipt },
+  { label: "❓ General HR Help", query: "What HR services can you help me with?", icon: HelpCircle },
+]
+
+const HR_ADMIN_SUGGESTIONS = [
+  { label: "👥 All Employees", query: "Show me all employees and their details", icon: Briefcase },
+  { label: "🏖️ Pending Leave Requests", query: "Show me all pending leave requests", icon: CalendarDays },
+  { label: "💰 Salary Overview", query: "Show me a salary overview for all employees", icon: Globe },
+  { label: "🧾 Pending Expenses", query: "Show me all pending expense claims", icon: Receipt },
+  { label: "⚠️ Compliance Alerts", query: "Are there any active compliance alerts?", icon: FileText },
+  { label: "❓ General HR Help", query: "What HR services can you help me with?", icon: HelpCircle },
+]
+
+function getSuggestions(role?: string) {
+  if (role === "manager") return MANAGER_SUGGESTIONS
+  if (role === "hr_admin") return HR_ADMIN_SUGGESTIONS
+  return EMPLOYEE_SUGGESTIONS
+}
+
+function getGreeting(role?: string) {
+  if (role === "manager") return "Hello! I'm your HR assistant. As a manager, I can help you with your own data as well as your direct reports' leave, salary, performance, and more. How can I help?"
+  if (role === "hr_admin") return "Hello! I'm your HR assistant. As an HR Admin, I have full access to all employee data, compliance alerts, and company-wide reports. How can I help?"
+  return "Hello! I'm your HR assistant powered by AI. I can help you with company policies, leave balances, salary info, and more. How can I help you today?"
+}
 
 interface EmployeeChatProps {
   onNavigate?: (page: string, payload?: any) => void
@@ -46,7 +76,7 @@ export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatPr
     {
       id: 1,
       sender: "bot",
-      content: "Hello! I'm your HR assistant powered by AI. I can help you with company policies, leave balances, salary info, and more. How can I help you today?",
+      content: getGreeting(userRole),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ])
@@ -265,9 +295,9 @@ export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatPr
               </div>
             ))}
             {/* Quick Suggestion Chips */}
-            {showSuggestions && messages.length === 1 && !isLoading && (
+            {!isLoading && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 pb-2 max-w-xl">
-                {QUICK_SUGGESTIONS.map((suggestion, index) => (
+                {getSuggestions(userRole).map((suggestion, index) => (
                   <button
                     key={index}
                     onClick={() => handleSuggestionClick(suggestion.query)}

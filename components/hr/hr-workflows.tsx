@@ -137,6 +137,14 @@ export function HrWorkflows() {
 
   const handleRequestInfo = () => {
     setShowChat(true)
+    // Also dispatch event to open real-time chat with the employee
+    if (selectedRequest) {
+      const EMPLOYEE_USER_ID = "c9422b3d-9b24-4a45-8e6f-dc578d4a28e7" // Alex Chan (demo)
+      const prefillMessage = `Re: ${selectedRequest.type} - ${selectedRequest.description || selectedRequest.reason || selectedRequest.item || ''} (${selectedRequest.employee})`
+      window.dispatchEvent(new CustomEvent("open-chat-with", {
+        detail: { userId: EMPLOYEE_USER_ID, prefillMessage }
+      }))
+    }
   }
 
   const handleSendRequestInfo = () => {
@@ -167,11 +175,19 @@ export function HrWorkflows() {
     sharedNotifications.push(newSharedNotification)
     localStorage.setItem('notifications', JSON.stringify(sharedNotifications))
 
+    // Also send via real-time chat
+    const EMPLOYEE_USER_ID = "c9422b3d-9b24-4a45-8e6f-dc578d4a28e7"
+    window.dispatchEvent(new CustomEvent("open-chat-with", {
+      detail: {
+        userId: EMPLOYEE_USER_ID,
+        prefillMessage: requestInfoChat
+      }
+    }))
+
     setSelectedRequest(updatedRequest)
     setChatHistory(updatedMessages)
     setRequestInfoChat("")
     setIsModalOpen(false)
-    alert("Request for information sent to employee.")
   }
 
   const getAiAnalysis = (type: string, amount?: string) => {

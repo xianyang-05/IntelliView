@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy } from "lucide-react"
+import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy, Undo2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -321,13 +321,27 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
                     Accept & Sign
                   </Button>
                 ) : (
-                  <Button
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg animate-pulse"
-                    onClick={handleFinalizeContract}
-                  >
-                    <FileText className="h-4 w-4" />
-                    Confirm & Finalize
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setContractsList(prev => prev.map(c =>
+                          c.id === contract.id ? { ...c, tempSignature: undefined } : c
+                        ))
+                      }}
+                    >
+                      <Undo2 className="h-4 w-4" />
+                      Re-sign
+                    </Button>
+                    <Button
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg animate-pulse"
+                      onClick={handleFinalizeContract}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Confirm & Finalize
+                    </Button>
+                  </div>
                 )}
               </>
             )}
