@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy, Undo2 } from "lucide-react"
+import { FileText, Download, Eye, TrendingUp, Award, Clock, ArrowLeft, Sparkles, Copy, Undo2, AlertTriangle, CheckCircle2, PenLine } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -131,18 +131,37 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
   }
 
   const handleSaveSignature = () => {
-    if (canvasRef.current) {
+    if (canvasRef.current && viewingContract) {
       const dataUrl = canvasRef.current.toDataURL()
+      const contract = contractsList.find(c => c.id === viewingContract)
 
-      // Store signature temporarily in the contract object
+      // Directly finalize: set signature and update status to Signed
       setContractsList(prev => prev.map(c => {
         if (c.id === viewingContract) {
-          return { ...c, tempSignature: dataUrl }
+          return {
+            ...c,
+            signature: dataUrl,
+            tempSignature: undefined,
+            status: "Signed",
+            statusColor: "bg-emerald-500/20 text-emerald-400"
+          }
         }
         return c
       }))
 
+      // Add to history
+      if (contract) {
+        const now = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        setHistoryList(prev => [
+          { action: `${contract.name} Signed`, date: now, type: "Contract" },
+          ...prev
+        ])
+      }
+
       setIsSignDialogOpen(false)
+      toast.success("Contract signed successfully!", {
+        description: `${contract?.name} has been signed and finalized.`
+      })
     }
   }
 
@@ -508,23 +527,47 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
 
         <TabsContent value="contracts" className="space-y-4">
           {contractsList.map((contract, index) => (
-            <Card key={index} className="">
+            <Card
+              key={index}
+              className={cn(
+                "transition-all",
+                contract.status === "Pending Signature" && "border-yellow-500/50 shadow-[0_0_15px_-3px_rgba(234,179,8,0.15)]"
+              )}
+            >
               <CardContent className="flex items-center justify-between p-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
-                    <FileText className="h-6 w-6 text-primary" />
+                  <div className={cn(
+                    "p-3 rounded-lg",
+                    contract.status === "Pending Signature" ? "bg-yellow-500/10" : "bg-primary/10"
+                  )}>
+                    <FileText className={cn(
+                      "h-6 w-6",
+                      contract.status === "Pending Signature" ? "text-yellow-500" : "text-primary"
+                    )} />
                   </div>
                   <div>
                     <h3 className="font-semibold">{contract.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {contract.type} • Signed on {contract.date}
+                      {contract.type} • {contract.status === "Signed" ? `Signed on ${contract.date}` : `Issued on ${contract.date}`}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${contract.statusColor}`}>
-                    {contract.status}
-                  </span>
+                  {contract.status === "Pending Signature" ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-500 border border-yellow-500/30">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                      </span>
+                      <AlertTriangle className="h-3 w-3" />
+                      Pending Signature
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Signed
+                    </span>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -534,6 +577,19 @@ export function EmployeeContracts({ highlight }: EmployeeContractsProps) {
                     <Eye className="h-4 w-4" />
                     View
                   </Button>
+                  {contract.status === "Pending Signature" && (
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold shadow-lg"
+                      onClick={() => {
+                        setViewingContract(contract.id)
+                        setTimeout(() => setIsSignDialogOpen(true), 100)
+                      }}
+                    >
+                      <PenLine className="h-4 w-4" />
+                      Sign Now
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm">
                     <Download className="h-4 w-4" />
                   </Button>
