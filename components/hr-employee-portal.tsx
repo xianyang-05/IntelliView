@@ -16,7 +16,18 @@ import { HrContractGeneration } from "./hr/hr-contract-generation"
 import { HrWorkflows } from "./hr/hr-workflows"
 import { HrCompliance } from "./hr/hr-compliance"
 import { HrVersionControl } from "./hr/hr-version-control"
-import { HrPerformance } from "./hr/hr-performance"
+import { HrPerformance } from "./hr/hr-performance-main"
+import { EmployeeProfile } from "./employee/employee-profile"
+import { Bell, LogOut, Settings, CircleUser } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function HrEmployeePortal() {
   const [isHrMode, setIsHrMode] = useState(false)
@@ -57,6 +68,8 @@ export function HrEmployeePortal() {
           return <EmployeeCompliance />
         case "journal":
           return <EmployeeJournal />
+        case "profile":
+          return <EmployeeProfile />
         default:
           return <EmployeeHome />
       }
@@ -129,8 +142,52 @@ export function HrEmployeePortal() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        {renderContent()}
+      <main className="flex-1 relative overflow-hidden flex flex-col">
+        {/* Floating Header Icons */}
+        <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+            <Bell className="h-5 w-5" />
+            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-600"></span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white/20 shadow-sm">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src="/placeholder-user.jpg" alt="@shadcn" />
+                  <AvatarFallback>AC</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">Alex Chan</p>
+                  <p className="text-xs leading-none text-muted-foreground">alex.chan@zerohr.com</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setActivePage("profile"); setIsHrMode(false) }}>
+                <CircleUser className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Page Content */}
+        <div className="flex-1 overflow-auto">
+          {renderContent()}
+        </div>
       </main>
     </div>
   )

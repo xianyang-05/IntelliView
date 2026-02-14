@@ -93,29 +93,32 @@ export function HrCompliance() {
       impact: "High",
       details: "The new amendment requires all companies to structure overtime pay calculation based on the new base rate formulas. It also mandates a formal policy for hybrid work requests.",
       affected: "All Employees",
-      actionRequired: "Update Employee Handbook"
+      actionRequired: "Update Employee Handbook",
+      image: "/compliance-images/labor-law.jpg"
     },
     {
       id: 2,
       title: "Tax Filing Deadline Extension",
       date: "5 days ago",
-      source: "Tax Authority",
-      summary: "Corporate tax filing deadline extended by 14 days for the current fiscal year.",
+      source: "Inland Revenue Authority",
+      summary: "Corporate tax filing deadline has been extended by 15 days due to system upgrades.",
       impact: "Medium",
-      details: "Due to technical maintenance of the portal, the deadline is pushed to May 15th. No penalties for late filing before this date.",
-      affected: "Finance Dept, HR Payroll",
-      actionRequired: "Notify Finance Team"
+      details: "The new deadline is now June 15th. This applies to Form C-S/C corporate income tax returns. No penalties will be imposed for filings within this extended period.",
+      affected: "Finance Department",
+      actionRequired: "Adjust Filing Schedule",
+      image: "/compliance-images/tax-filing.jpg"
     },
     {
       id: 3,
-      title: "Workplace Safety Standards Update",
+      title: "Workplace Safety Guidelines v2.0",
       date: "1 week ago",
       source: "Safety Council",
-      summary: "Updated guidelines for ergonomic assessments in office environments.",
-      impact: "Low",
-      details: "Annual ergonomic assessments are now recommended but not mandatory. Checklist provided for self-assessment.",
-      affected: "Facilities, HR Admin",
-      actionRequired: "Distribute Self-Assessment Checklist"
+      summary: "Updated protocols for fire safety and emergency evacuation procedures.",
+      impact: "High",
+      details: "Mandatory fire drills must now be conducted quarterly (previously semi-annually). New signage requirements for all emergency exits must be implemented immediately.",
+      affected: "Facilities / All Staff",
+      actionRequired: "Schedule Fire Drill",
+      image: "/compliance-images/safety-guidelines.jpg"
     }
   ]
 
@@ -341,14 +344,23 @@ export function HrCompliance() {
       <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{selectedUpdate?.source}</Badge>
-              <span className="text-sm text-muted-foreground">{selectedUpdate?.date}</span>
-            </div>
             <DialogTitle className="text-2xl">{selectedUpdate?.title}</DialogTitle>
+            <DialogDescription className="flex items-center gap-2 mt-2">
+              <span className="font-medium text-primary">{selectedUpdate?.source}</span>
+              <span>•</span>
+              <span>{selectedUpdate?.date}</span>
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-3 gap-8 py-6">
+          <div className="mt-4 mb-6 rounded-lg overflow-hidden h-48 w-full bg-slate-100">
+            <img
+              src={selectedUpdate?.image || "/placeholder.jpg"}
+              alt={selectedUpdate?.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-8 pb-6">
             <div className="col-span-2 space-y-6">
               <div>
                 <h4 className="font-semibold text-sm text-muted-foreground mb-2">Executive Summary</h4>
