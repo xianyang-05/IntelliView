@@ -28,10 +28,10 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
 
     const employees = [
         { id: "emp-1", name: "Sarah Johnson", role: "Senior Engineer", dept: "Engineering", kpi: 96, trend: "up" },
-        { id: "emp-2", name: "Michael Chen", role: "Product Manager", dept: "Product", kpi: 92, trend: "stable" },
-        { id: "emp-3", name: "Emma Wilson", role: "UX Designer", dept: "Design", kpi: 89, trend: "down" },
+        { id: "emp-3", name: "Alex Chan", role: "UX Designer", dept: "Design", kpi: 65, trend: "down" },
         { id: "emp-4", name: "James Taylor", role: "Data Scientist", dept: "Analytics", kpi: 94, trend: "up" },
-        { id: "emp-5", name: "Lisa Anderson", role: "Marketing Lead", dept: "Marketing", kpi: 88, trend: "stable" },
+        { id: "emp-5", name: "David Kim", role: "Marketing Lead", dept: "Marketing", kpi: 78, trend: "stable" },
+        { id: "emp-2", name: "Michael Chen", role: "Product Manager", dept: "Product", kpi: 85, trend: "stable" },
     ]
 
     return (
@@ -101,13 +101,13 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                     </CardHeader>
                     <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <RechartsBarChart data={deptPerformanceData} layout="vertical" margin={{ left: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                <XAxis type="number" domain={[0, 100]} hide />
-                                <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12 }} />
+                            <RechartsBarChart data={deptPerformanceData} barCategoryGap="30%">
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                                <YAxis type="number" domain={[0, 100]} hide />
                                 <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                                <Bar dataKey="performance" name="Performance" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
-                                <Bar dataKey="attendance" name="Attendance" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} />
+                                <Bar dataKey="performance" name="Performance" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
+                                <Bar dataKey="attendance" name="Attendance" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
                             </RechartsBarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -165,9 +165,16 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                                 onClick={() => onViewDetail(emp.id)}
                             >
                                 <div className="flex items-center gap-4">
-                                    <Avatar>
-                                        <AvatarImage src={`/placeholder-user-${emp.id}.jpg`} />
-                                        <AvatarFallback>{emp.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                                        <div className={`w-full h-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br ${emp.dept === 'Engineering' ? 'from-blue-500 to-blue-600' :
+                                                emp.dept === 'Design' ? 'from-purple-500 to-purple-600' :
+                                                    emp.dept === 'Sales' ? 'from-green-500 to-green-600' :
+                                                        emp.dept === 'Product' ? 'from-orange-500 to-orange-600' :
+                                                            emp.dept === 'Marketing' ? 'from-pink-500 to-pink-600' :
+                                                                'from-gray-500 to-gray-600'
+                                            }`}>
+                                            {emp.name.split(' ').map(n => n[0]).join('')}
+                                        </div>
                                     </Avatar>
                                     <div>
                                         <h3 className="font-semibold">{emp.name}</h3>
@@ -178,7 +185,10 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                                 <div className="flex items-center gap-8">
                                     <div className="text-right">
                                         <p className="text-xs text-muted-foreground mb-1">KPI Score</p>
-                                        <p className="font-bold text-lg">{emp.kpi}</p>
+                                        <p className={`font-bold text-lg ${emp.kpi >= 90 ? 'text-emerald-600' :
+                                            emp.kpi >= 80 ? 'text-blue-600' :
+                                                emp.kpi >= 70 ? 'text-amber-600' : 'text-red-600'
+                                            }`}>{emp.kpi}</p>
                                     </div>
                                     <div className="text-right w-24">
                                         <p className="text-xs text-muted-foreground mb-1">Trend</p>

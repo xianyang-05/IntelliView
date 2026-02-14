@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Users, UserPlus, Briefcase, TrendingUp, TrendingDown, Eye, Filter } from "lucide-react"
+import { Users, UserPlus, Briefcase, TrendingUp, TrendingDown, Eye, Filter, FileText } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 export function HrDashboard() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null)
   const [departmentFilter, setDepartmentFilter] = useState<string>("All")
+  const [retrievedIds, setRetrievedIds] = useState<number[]>([])
+  const [showDocsModal, setShowDocsModal] = useState(false)
+  const [isRetrieving, setIsRetrieving] = useState(false)
 
   const stats = [
     { label: "Total Employees", value: "248", change: "+12%", icon: Users },
@@ -52,10 +55,21 @@ export function HrDashboard() {
   const existingWorkers = departmentLeads
 
   const newRecruits = [
-    { id: 6, name: "Alex Kumar", role: "Software Engineer", department: "Engineering", salary: "$120,000", joinDate: "Jan 2024", status: "Onboarding", performance: "New" },
+    { id: 6, name: "Alex Chan", role: "Software Engineer", department: "Engineering", salary: "$120,000", joinDate: "Jan 2024", status: "Onboarding", performance: "New" },
     { id: 7, name: "Sophie Martinez", role: "UX Designer", department: "Design", salary: "$110,000", joinDate: "Feb 2024", status: "Onboarding", performance: "New" },
     { id: 8, name: "David Park", role: "Sales Manager", department: "Sales", salary: "$130,000", joinDate: "Mar 2024", status: "Onboarding", performance: "New" }
   ]
+
+  const handleRetrieveData = () => {
+    setIsRetrieving(true)
+    // Simulate API call
+    setTimeout(() => {
+      if (selectedEmployee) {
+        setRetrievedIds(prev => [...prev, selectedEmployee.id])
+        setIsRetrieving(false)
+      }
+    }, 1500)
+  }
 
   return (
     <div className="p-8">
@@ -412,6 +426,14 @@ export function HrDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {/* Header Row for Alignment */}
+            <div className="hidden md:flex justify-end gap-6 px-4 pb-2 text-xs font-semibold text-muted-foreground">
+              <div className="w-24 text-right">SALARY</div>
+              <div className="w-24 text-right">JOINED</div>
+              <div className="w-32 text-center">PERFORMANCE</div>
+              <div className="w-16"></div> {/* Spacer for View button */}
+            </div>
+
             {filteredEmployees.map((employee) => (
               <div
                 key={employee.id}
@@ -420,7 +442,14 @@ export function HrDashboard() {
               >
                 <div className="flex items-center gap-4 flex-1">
                   {/* Avatar */}
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-br flex items-center justify-center ${employee.department === 'Engineering' ? 'from-blue-500 to-blue-600' :
+                      employee.department === 'Design' ? 'from-purple-500 to-purple-600' :
+                        employee.department === 'Sales' ? 'from-green-500 to-green-600' :
+                          employee.department === 'Product' ? 'from-orange-500 to-orange-600' :
+                            employee.department === 'Marketing' ? 'from-pink-500 to-pink-600' :
+                              employee.department === 'Analytics' ? 'from-cyan-500 to-cyan-600' :
+                                'from-gray-500 to-gray-600'
+                    }`}>
                     <span className="text-lg font-semibold text-white">
                       {employee.name.split(' ').map(n => n[0]).join('')}
                     </span>
@@ -432,23 +461,24 @@ export function HrDashboard() {
                     <p className="text-sm text-muted-foreground">{employee.role} • {employee.department}</p>
                   </div>
 
-                  {/* Details */}
+                  {/* Details - Aligned Columns */}
                   <div className="hidden md:flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Salary</p>
+                    <div className="text-right w-24">
                       <p className="font-semibold text-sm">{employee.salary}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Joined</p>
+                    <div className="text-right w-24">
                       <p className="font-semibold text-sm">{employee.joinDate}</p>
                     </div>
-                    <Badge variant={employee.performance === 'Excellent' ? 'default' : 'secondary'}>
-                      {employee.performance}
-                    </Badge>
-                    <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </Button>
+                    <div className="w-32 flex justify-center">
+                      <Badge variant={employee.performance === 'Excellent' ? 'default' : employee.performance === 'New' ? 'outline' : 'secondary'}>
+                        {employee.performance}
+                      </Badge>
+                    </div>
+                    <div className="w-16 flex justify-end">
+                      <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -463,60 +493,153 @@ export function HrDashboard() {
           {selectedEmployee && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-2xl">{selectedEmployee.name}</DialogTitle>
-                <DialogDescription>{selectedEmployee.role}</DialogDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <DialogTitle className="text-2xl">{selectedEmployee.name}</DialogTitle>
+                    <DialogDescription>{selectedEmployee.role}</DialogDescription>
+                  </div>
+                  {/* New Recruit Tag */}
+                  {selectedEmployee.performance === 'New' && (
+                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200">New Recruit</Badge>
+                  )}
+                </div>
               </DialogHeader>
-              <div className="grid grid-cols-2 gap-6 mt-6">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Department</p>
-                  <p className="font-semibold">{selectedEmployee.department}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Salary</p>
-                  <p className="font-semibold">{selectedEmployee.salary}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Join Date</p>
-                  <p className="font-semibold">{selectedEmployee.joinDate}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Status</p>
-                  <Badge>{selectedEmployee.status}</Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Performance</p>
-                  <p className="font-semibold">{selectedEmployee.performance}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Employee ID</p>
-                  <p className="font-semibold">EMP-{selectedEmployee.id.toString().padStart(4, '0')}</p>
-                </div>
-              </div>
-              <div className="mt-6 pt-6 border-t">
-                <h3 className="font-semibold mb-4">Additional Details</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Email</p>
-                    <p className="text-sm">{selectedEmployee.name.toLowerCase().replace(' ', '.')}@company.com</p>
+
+              {selectedEmployee.performance === 'New' && !retrievedIds.includes(selectedEmployee.id) ? (
+                // State 1: Data Missing, Show Retrieve Button
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="p-4 bg-slate-100 rounded-full">
+                    <UserPlus className="h-8 w-8 text-slate-400" />
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Reports To</p>
-                    <p className="text-sm">Department Head</p>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">Employee Data Pending</h3>
+                    <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                      Full profile data from the onboarding system has not been synced for this new recruit.
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Contract Type</p>
-                    <p className="text-sm">Full-time Permanent</p>
-                  </div>
+                  <Button onClick={handleRetrieveData} className="gap-2 mt-2" disabled={isRetrieving}>
+                    {isRetrieving ? (
+                      <>
+                        <Filter className="h-4 w-4 animate-spin" /> Retrieving...
+                      </>
+                    ) : (
+                      <>
+                        <Filter className="h-4 w-4" /> Retrieve Data
+                      </>
+                    )}
+                  </Button>
                 </div>
-              </div>
-              <div className="mt-6 flex gap-3">
-                <Button className="flex-1">Edit Details</Button>
-                <Button variant="outline" className="flex-1">View Full Profile</Button>
-              </div>
+              ) : (
+                // State 2: Data Present (Normal View)
+                <>
+                  <div className="grid grid-cols-2 gap-6 mt-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Department</p>
+                      <p className="font-semibold">{selectedEmployee.department}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Salary</p>
+                      <p className="font-semibold">{selectedEmployee.salary}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Join Date</p>
+                      <p className="font-semibold">{selectedEmployee.joinDate}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Status</p>
+                      <Badge>{selectedEmployee.status}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Performance</p>
+                      <p className="font-semibold">{selectedEmployee.performance}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Employee ID</p>
+                      <p className="font-semibold">EMP-{selectedEmployee.id.toString().padStart(4, '0')}</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 pt-6 border-t">
+                    <h3 className="font-semibold mb-4">Additional Details</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Email</p>
+                        <p className="text-sm">{selectedEmployee.name.toLowerCase().replace(' ', '.')}@company.com</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Reports To</p>
+                        <p className="text-sm">Department Head</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Contract Type</p>
+                        <p className="text-sm">Full-time Permanent</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="mt-6 flex gap-3">
+                    {selectedEmployee.performance === 'New' ? (
+                      <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowDocsModal(true)}>
+                        <FileText className="h-4 w-4 mr-2" /> Generate All Documents
+                      </Button>
+                    ) : (
+                      <>
+                        <Button className="flex-1">Edit Details</Button>
+                        <Button variant="outline" className="flex-1">View Full Profile</Button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Documents Modal */}
+      <Dialog open={showDocsModal} onOpenChange={setShowDocsModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-emerald-600" />
+              Onboarding Documents
+            </DialogTitle>
+            <DialogDescription>
+              Required documents for Interviewer & Employee Packet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg">
+              <h4 className="font-semibold text-emerald-800 mb-2 text-sm uppercase">For Employee</h4>
+              <ul className="list-disc list-inside text-sm text-emerald-700 space-y-1">
+                <li>Offer Letter (Signed)</li>
+                <li>Employee Handbook</li>
+                <li>Benefits Summary</li>
+                <li>IT Policy Agreement</li>
+              </ul>
+            </div>
+            <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
+              <h4 className="font-semibold text-blue-800 mb-2 text-sm uppercase">For Interviewer / HR</h4>
+              <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                <li>Interview Feedback Forms</li>
+                <li>Resume & Portfolio</li>
+                <li>Reference Check Report</li>
+                <li>Background Check Clearance</li>
+              </ul>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowDocsModal(false)}>Close</Button>
+            <Button onClick={() => {
+              alert("Documents generated and sent to relevant parties.")
+              setShowDocsModal(false)
+            }}>
+              Send to Employee
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
   )
 }
+

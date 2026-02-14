@@ -829,117 +829,133 @@ export function EmployeeRequests() {
 
   // Main Requests View
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-8 space-y-8">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Requests</h1>
-          <p className="text-muted-foreground">Track and manage your HR requests</p>
+          <h1 className="text-3xl font-bold tracking-tight">Requests & Approvals</h1>
+          <p className="text-muted-foreground mt-1">Manage your leave, expenses, and other inquiries</p>
         </div>
-        <div className="relative">
-          <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-            + New Request
-            <ChevronDown className="h-4 w-4" />
+      </div>
+
+      {/* Action Required Banner */}
+      {actionRequiredCount > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
+          <div className="p-2 bg-orange-100 rounded-full">
+            <AlertCircle className="h-5 w-5 text-orange-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-orange-900">Action Required</h3>
+            <p className="text-sm text-orange-700">You have {actionRequiredCount} request(s) waiting for your response.</p>
+          </div>
+          <Button
+            variant="outline"
+            className="bg-white border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+            onClick={() => {
+              const req = requests.find(r => r.status === 'info_requested')
+              if (req) {
+                setSelectedActionRequest(req)
+                setCurrentView('action')
+              }
+            }}
+          >
+            Respond Now
           </Button>
         </div>
-      </div>
+      )}
 
-      {/* Quick Action Cards */}
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
-        <Card
-          className="hover:shadow-lg transition-all cursor-pointer"
-          onClick={() => setCurrentView("leave")}
-        >
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="p-3 rounded-lg bg-secondary">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm">Request Leave</h3>
-              <p className="text-xs text-muted-foreground">Annual, sick, or personal leave</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="hover:shadow-lg transition-all cursor-pointer"
-          onClick={() => setCurrentView("expense")}
-        >
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="p-3 rounded-lg bg-secondary">
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm">Submit Expense</h3>
-              <p className="text-xs text-muted-foreground">Reimbursement requests</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={`${actionRequiredCount > 0 ? 'border-red-500/50 bg-red-500/5' : ''} transition-all cursor-pointer`} onClick={() => {
-          if (actionRequiredCount > 0) {
-            const actionItem = requests.find(r => r.status === 'info_requested')
-            if (actionItem) {
-              setSelectedActionRequest(actionItem)
-              setCurrentView('action')
-            }
-          }
-        }}>
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className={`p-3 rounded-lg ${actionRequiredCount > 0 ? 'bg-red-500/10' : 'bg-secondary'}`}>
-              <AlertCircle className={`h-5 w-5 ${actionRequiredCount > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
-            </div>
-            <div>
-              <h3 className={`font-semibold text-sm ${actionRequiredCount > 0 ? 'text-red-600' : ''}`}>Action Required</h3>
-              <p className="text-xs text-muted-foreground">{actionRequiredCount} Requests Pending</p>
-            </div>
-            {actionRequiredCount > 0 && (
-              <div className="ml-auto w-2 h-2 rounded-full bg-red-500" />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Active Requests List */}
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Clock className="h-5 w-5 text-muted-foreground" />
+      {/* Active Requests Timeline View */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <Clock className="h-5 w-5 text-blue-500" />
           Active Requests
         </h2>
-      </div>
-
-      <div className="space-y-4">
-        {(requests.length > 0 ? requests.filter(r => r.status !== 'info_submitted') : []).map((request: any, index: number) => (
-          <Card key={index}>
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-4">
+        <div className="space-y-4">
+          {/* Mock Data for Timeline Demo */}
+          {[
+            { id: 1, type: "Leave Request", title: "Annual Leave - 5 days", date: "Feb 1, 2024", status: "pending", step: 1, totalSteps: 4, badgeColor: "bg-amber-100 text-amber-700", borderColor: "border-amber-200" },
+            { id: 2, type: "Expense Claim", title: "Team Lunch - Nando's", date: "Today", status: "pending", step: 1, totalSteps: 4, badgeColor: "bg-amber-100 text-amber-700", borderColor: "border-emerald-200" }
+          ].map((req) => (
+            <div key={req.id} className="bg-card border border-border rounded-xl p-6 shadow-sm">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold">{request.type}</h3>
-                    <Badge variant={
-                      request.status === 'approved' ? 'default' :
-                        request.status === 'info_requested' ? 'destructive' :
-                          'secondary'
-                    }>
-                      {request.status === 'info_requested' ? 'Action Required' :
-                        request.status === 'info_submitted' ? 'Under Review' :
-                          request.status}
-                    </Badge>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="font-semibold text-lg">{req.type}</h3>
+                    <Badge variant="secondary" className={req.badgeColor}>{req.status}</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{request.description || request.reason}</p>
+                  <p className="text-muted-foreground">{req.title}</p>
                 </div>
-                <span className="text-sm text-muted-foreground">{request.date || request.dates}</span>
+                <span className="text-sm text-muted-foreground">Submitted {req.date}</span>
               </div>
 
-              {/* Messages Preview if any */}
-              {request.messages && request.messages.length > 0 && (
-                <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm border-l-2 border-primary">
-                  <p className="font-semibold text-xs text-primary mb-1">Latest Update:</p>
-                  <p className="text-muted-foreground line-clamp-1">{request.messages[request.messages.length - 1].message}</p>
+              {/* Timeline */}
+              <div className="relative pt-2 pb-6">
+                {/* Progress Bar Background */}
+                <div className="absolute top-3 left-0 w-full h-1 bg-secondary rounded-full"></div>
+
+                {/* Active Progress Bar */}
+                <div className="absolute top-3 left-0 h-1 bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${(req.step / (req.totalSteps - 1)) * 100}%` }}></div>
+
+                <div className="relative flex justify-between">
+                  {['Submitted', 'Manager Review', 'HR Approval', req.id === 1 ? 'Completed' : 'Paid'].map((label, index) => {
+                    const isActive = index <= req.step;
+                    const isCurrent = index === req.step;
+
+                    return (
+                      <div key={index} className="flex flex-col items-center gap-2 relative">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold z-10 
+                          ${isActive ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 'bg-secondary text-muted-foreground border-2 border-background'}
+                          ${isCurrent ? 'ring-4 ring-emerald-500/20' : ''}
+                        `}>
+                          {isActive ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                        </div>
+                        <span className={`text-xs font-medium absolute -bottom-6 w-24 text-center ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Request Types Grids */}
+      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 pt-4">
+        <FileText className="h-5 w-5 text-purple-500" />
+        New Request
+      </h2>
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="hover:border-emerald-400/50 hover:shadow-md transition-all cursor-pointer group border-emerald-100/50" onClick={() => setCurrentView("leave")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium">Leave Request</CardTitle>
+            <div className="p-2 bg-emerald-100/50 rounded-lg group-hover:bg-emerald-100 transition-colors">
+              <Calendar className="h-4 w-4 text-emerald-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-700">12 Days</div>
+            <p className="text-xs text-muted-foreground mt-1">Remaining Annual Leave</p>
+            <Button variant="link" className="px-0 text-emerald-600 h-auto mt-4 group-hover:underline">
+              Apply for Leave <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:border-blue-400/50 hover:shadow-md transition-all cursor-pointer group border-blue-100/50" onClick={() => setCurrentView("expense")}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium">Expense Claim</CardTitle>
+            <div className="p-2 bg-blue-100/50 rounded-lg group-hover:bg-blue-100 transition-colors">
+              <DollarSign className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-700">$0.00</div>
+            <p className="text-xs text-muted-foreground mt-1">Pending Reimbursements</p>
+            <Button variant="link" className="px-0 text-blue-600 h-auto mt-4 group-hover:underline">
+              Submit Claim <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
