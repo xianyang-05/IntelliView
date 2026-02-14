@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive } from "lucide-react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -10,11 +10,13 @@ import { EmployeeContracts } from "./employee/employee-contracts"
 import { EmployeeChat } from "./employee/employee-chat"
 import { EmployeeRequests } from "./employee/employee-requests"
 import { EmployeeCompliance } from "./employee/employee-compliance"
+import { EmployeeJournal } from "./employee/employee-journal"
 import { HrDashboard } from "./hr/hr-dashboard"
 import { HrContractGeneration } from "./hr/hr-contract-generation"
 import { HrWorkflows } from "./hr/hr-workflows"
 import { HrCompliance } from "./hr/hr-compliance"
 import { HrVersionControl } from "./hr/hr-version-control"
+import { HrPerformance } from "./hr/hr-performance"
 
 export function HrEmployeePortal() {
   const [isHrMode, setIsHrMode] = useState(false)
@@ -25,6 +27,7 @@ export function HrEmployeePortal() {
     { id: "contracts", label: "Contract & Equity", icon: FileText },
     { id: "chat", label: "Ask HR", icon: MessageSquare },
     { id: "requests", label: "Requests", icon: Send },
+    { id: "journal", label: "Personal Journal", icon: BookOpen },
     { id: "compliance", label: "Compliance Alerts", icon: AlertCircle },
   ]
 
@@ -33,6 +36,7 @@ export function HrEmployeePortal() {
     { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
     { id: "workflows", label: "Workflows", icon: Workflow },
     { id: "compliance", label: "Compliance & Audit", icon: Shield },
+    { id: "performance", label: "Performance", icon: TrendingUp },
     { id: "version-control", label: "Version Control", icon: Archive },
   ]
 
@@ -51,6 +55,8 @@ export function HrEmployeePortal() {
           return <EmployeeRequests />
         case "compliance":
           return <EmployeeCompliance />
+        case "journal":
+          return <EmployeeJournal />
         default:
           return <EmployeeHome />
       }
@@ -58,6 +64,8 @@ export function HrEmployeePortal() {
       switch (activePage) {
         case "dashboard":
           return <HrDashboard />
+        case "performance":
+          return <HrPerformance />
         case "contract-gen":
           return <HrContractGeneration />
         case "workflows":
@@ -81,7 +89,7 @@ export function HrEmployeePortal() {
             <Building2 className="h-8 w-8 text-primary" />
             <span className="text-xl font-semibold">PeopleHub</span>
           </div>
-          
+
           {/* Portal Toggle */}
           <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
             <div className="flex items-center gap-2">

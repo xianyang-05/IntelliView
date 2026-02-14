@@ -9,9 +9,52 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
+import { useRef } from "react"
+import { Loader2, FileText, X } from "lucide-react"
 
 export function EmployeeRequests() {
   const [currentView, setCurrentView] = useState<"main" | "leave" | "expense">("main")
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [extractionStatus, setExtractionStatus] = useState<"idle" | "extracting" | "success">("idle")
+  const [expenseForm, setExpenseForm] = useState({
+    category: "",
+    amount: "",
+    date: "",
+    description: ""
+  })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadedFile(file)
+      // If current view is expense, simulate extraction
+      if (currentView === "expense") {
+        simulateExtraction()
+      }
+    }
+  }
+
+  const simulateExtraction = () => {
+    setExtractionStatus("extracting")
+    setTimeout(() => {
+      setExpenseForm({
+        category: "meals",
+        amount: "42.50",
+        date: "2026-02-10",
+        description: "Team lunch at Nando's"
+      })
+      setExtractionStatus("success")
+    }, 1500)
+  }
+
+  const removeFile = () => {
+    setUploadedFile(null)
+    setExtractionStatus("idle")
+    setExpenseForm({ category: "", amount: "", date: "", description: "" })
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
   const [leaveDurationType, setLeaveDurationType] = useState<"continuous" | "split">("continuous")
   const [calendarMonth, setCalendarMonth] = useState(1) // 0=Jan, 1=Feb
   const [calendarYear] = useState(2026)
@@ -157,13 +200,53 @@ export function EmployeeRequests() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Drop receipt here or <span className="text-emerald-500">browse</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Photos or PDFs • Auto-detects invalid images</p>
-                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  accept=".pdf,.jpg,.png,.jpeg"
+                />
+
+                {uploadedFile ? (
+                  <div className="border rounded-lg p-4 flex items-center gap-4 bg-muted/20">
+                    <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                      {extractionStatus === "extracting" ? (
+                        <Loader2 className="h-5 w-5 text-emerald-500 animate-spin" />
+                      ) : (
+                        <FileText className="h-5 w-5 text-emerald-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{uploadedFile.name}</p>
+                      <p className="text-xs text-muted-foreground">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                      {extractionStatus === "extracting" && (
+                        <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3" /> Extracting details...
+                        </p>
+                      )}
+                      {extractionStatus === "success" && (
+                        <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
+                          <Check className="h-3 w-3" /> Data extracted successfully
+                        </p>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={removeFile}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
+                  >
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Drop receipt here or <span className="text-emerald-500">browse</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Photos or PDFs • Auto-detects invalid images</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -175,18 +258,27 @@ export function EmployeeRequests() {
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label>Expense Category</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="travel">Travel & Transport</SelectItem>
-                      <SelectItem value="meals">Meals & Entertainment</SelectItem>
-                      <SelectItem value="accommodation">Accommodation</SelectItem>
-                      <SelectItem value="transport">Local Transport</SelectItem>
-                      <SelectItem value="equipment">Equipment</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <Select value={expenseForm.category} onValueChange={(val) => setExpenseForm({ ...expenseForm, category: val })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="travel">Travel & Transport</SelectItem>
+                        <SelectItem value="meals">Meals & Entertainment</SelectItem>
+                        <SelectItem value="accommodation">Accommodation</SelectItem>
+                        <SelectItem value="transport">Local Transport</SelectItem>
+                        <SelectItem value="equipment">Equipment</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {extractionStatus === "success" && (
+                      <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                        <Badge variant="secondary" className="h-5 bg-emerald-100/50 text-emerald-600 text-[10px] px-1.5 pointer-events-none">
+                          <Sparkles className="w-2.5 h-2.5 mr-1" /> Auto-filled
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
@@ -194,18 +286,59 @@ export function EmployeeRequests() {
                     <Label>Amount ($)</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                      <Input type="number" placeholder="0.00" className="pl-7" />
+                      <Input
+                        type="number"
+                        placeholder="0.00"
+                        className="pl-7"
+                        value={expenseForm.amount}
+                        onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                      />
+                      {extractionStatus === "success" && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <Badge variant="secondary" className="h-5 bg-emerald-100/50 text-emerald-600 text-[10px] px-1.5 pointer-events-none">
+                            <Sparkles className="w-2.5 h-2.5 mr-1" /> Auto-filled
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Expense Date</Label>
-                    <Input type="date" />
+                    <div className="relative">
+                      <Input
+                        type="date"
+                        value={expenseForm.date}
+                        onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                      />
+                      {extractionStatus === "success" && (
+                        <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                          <Badge variant="secondary" className="h-5 bg-emerald-100/50 text-emerald-600 text-[10px] px-1.5 pointer-events-none">
+                            <Sparkles className="w-2.5 h-2.5 mr-1" /> Auto-filled
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Description</Label>
-                  <Textarea placeholder="Brief description of the expense..." rows={3} className="resize-none" />
+                  <div className="relative">
+                    <Textarea
+                      placeholder="Brief description of the expense..."
+                      rows={3}
+                      className="resize-none"
+                      value={expenseForm.description}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                    />
+                    {extractionStatus === "success" && (
+                      <div className="absolute right-2 top-2">
+                        <Badge variant="secondary" className="h-5 bg-emerald-100/50 text-emerald-600 text-[10px] px-1.5 pointer-events-none">
+                          <Sparkles className="w-2.5 h-2.5 mr-1" /> Auto-filled
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-3">
@@ -366,8 +499,8 @@ export function EmployeeRequests() {
                     <button
                       onClick={() => setLeaveDurationType("continuous")}
                       className={`p-4 rounded-lg border text-left transition-all ${leaveDurationType === "continuous"
-                          ? "border-emerald-500 bg-emerald-500/10"
-                          : "border-border bg-secondary/30 hover:border-muted-foreground/30"
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-border bg-secondary/30 hover:border-muted-foreground/30"
                         }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
@@ -379,8 +512,8 @@ export function EmployeeRequests() {
                     <button
                       onClick={() => setLeaveDurationType("split")}
                       className={`p-4 rounded-lg border text-left transition-all ${leaveDurationType === "split"
-                          ? "border-emerald-500 bg-emerald-500/10"
-                          : "border-border bg-secondary/30 hover:border-muted-foreground/30"
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-border bg-secondary/30 hover:border-muted-foreground/30"
                         }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
@@ -436,13 +569,42 @@ export function EmployeeRequests() {
                       <span>✦</span> View Guidelines
                     </button>
                   </div>
-                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer">
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Drop documents here or <span className="text-emerald-400">browse</span>
-                    </p>
-                    <p className="text-xs text-red-400 mt-1">Please select a leave type first</p>
-                  </div>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+
+                  {uploadedFile ? (
+                    <div className="border rounded-lg p-4 flex items-center gap-4 bg-secondary/30">
+                      <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-5 w-5 text-emerald-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{uploadedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                        <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
+                          <Check className="h-3 w-3" /> Document confirmed valid
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={removeFile}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Drop documents here or <span className="text-emerald-400">browse</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG (Max 5MB)</p>
+                    </div>
+                  )}
                 </div>
 
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" size="lg">
@@ -618,8 +780,8 @@ export function EmployeeRequests() {
                   <div key={stepIndex} className="flex items-center flex-1">
                     <div className="flex flex-col items-center flex-1">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center mb-2 ${step.status === "completed" ? "bg-emerald-500" :
-                          step.status === "current" ? "bg-yellow-500" :
-                            "bg-muted"
+                        step.status === "current" ? "bg-yellow-500" :
+                          "bg-muted"
                         }`}>
                         {step.status === "completed" ? (
                           <Check className="h-3 w-3 text-white" />
