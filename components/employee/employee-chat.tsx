@@ -62,9 +62,11 @@ interface EmployeeChatProps {
   onNavigate?: (page: string, payload?: any) => void
   userEmail?: string
   userRole?: string
+  promotionCongrats?: boolean
+  onPromotionCongratsHandled?: () => void
 }
 
-export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatProps) {
+export function EmployeeChat({ onNavigate, userEmail, userRole, promotionCongrats, onPromotionCongratsHandled }: EmployeeChatProps) {
   const [message, setMessage] = useState("")
   const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -94,6 +96,23 @@ export function EmployeeChat({ onNavigate, userEmail, userRole }: EmployeeChatPr
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isLoading])
+
+  // Auto-inject promotion congratulations message
+  useEffect(() => {
+    if (promotionCongrats) {
+      const congratsMsg: ChatMessage = {
+        id: Date.now(),
+        sender: "bot",
+        content: "🎉🎊 Congratulations, Alex! \n\nOn behalf of the entire HR team and ZeroHR, we are thrilled to inform you that your promotion to **Senior Software Engineer** has been officially approved!\n\n📅 Effective Date: March 1, 2026\n💼 New Title: Senior Software Engineer\n📈 Your updated compensation package will be reflected in your next payslip.\n\nThis is a well-deserved recognition of your outstanding contributions and dedication. We're excited to see you continue to grow and lead!\n\nIf you have any questions about your new role or benefits, feel free to ask me anytime. 🚀",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        source: "HR Department",
+        confidence: "high"
+      }
+      setMessages(prev => [...prev, congratsMsg])
+      setShowSuggestions(false)
+      onPromotionCongratsHandled?.()
+    }
+  }, [promotionCongrats])
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return

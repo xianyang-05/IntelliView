@@ -100,10 +100,30 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [isHrMode, setIsHrMode] = useState(false)
   const [activePage, setActivePage] = useState("home")
   const [navPayload, setNavPayload] = useState<any>(null)
+  const [autoOpenVisa, setAutoOpenVisa] = useState(false)
+  const [promotionCongrats, setPromotionCongrats] = useState(false)
+
+  // Seed promotion notification on first load
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const hasPromotion = stored.some((n: any) => n.type === 'promotion')
+    if (!hasPromotion) {
+      stored.push({
+        id: 'promo_' + Date.now(),
+        type: 'promotion',
+        title: '🎉 Promotion Approved!',
+        message: 'Congratulations! You have been promoted to Senior Software Engineer effective March 1, 2026. Your new compensation package and updated role details are being prepared.',
+        timestamp: new Date().toISOString(),
+        read: false
+      })
+      localStorage.setItem('notifications', JSON.stringify(stored))
+    }
+  }, [])
 
   const handleNavigate = (page: string, payload?: any) => {
     setActivePage(page)
     if (payload) setNavPayload(payload)
+    if (page !== "compliance") setAutoOpenVisa(false)
   }
 
   const employeeNav = [
@@ -111,8 +131,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     { id: "contracts", label: "Contract & Equity", icon: FileText },
     { id: "chat", label: "Ask HR", icon: MessageSquare },
     { id: "requests", label: "Requests", icon: Send },
+    { id: "compliance", label: "Compliance & Alerts", icon: AlertCircle },
     { id: "journal", label: "Personal Journal", icon: BookOpen },
-    { id: "compliance", label: "Compliance Alerts", icon: AlertCircle },
   ]
 
   const hrNav = [
@@ -144,7 +164,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           setNotifications(allNotifs.filter((n: any) => n.type === 'info_submitted' && !n.read))
         } else {
           // Employee sees 'document', 'request_info', or 'compliance_alert'
-          setNotifications(allNotifs.filter((n: any) => (n.type === 'document' || n.type === 'request_info' || n.type === 'compliance_alert') && !n.read))
+          setNotifications(allNotifs.filter((n: any) => (n.type === 'document' || n.type === 'request_info' || n.type === 'compliance_alert' || n.type === 'promotion') && !n.read))
         }
       }
     }
@@ -176,6 +196,9 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       setActivePage("workflows")
     } else if (selectedNotification.type === 'compliance_alert') {
       setActivePage("compliance")
+    } else if (selectedNotification.type === 'promotion') {
+      setPromotionCongrats(true)
+      setActivePage("chat")
     }
     setIsNotificationModalOpen(false)
   }
@@ -225,9 +248,10 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   }, [isHrMode])
 
   const handleVisaRenewalAction = () => {
-    // Navigate to requests or specifically visa page
+    // Navigate to employee compliance page and auto-open visa renewal modal
     setShowVisaRenewalModal(false)
-    setActivePage("requests") // Assuming Requests page handles this
+    setAutoOpenVisa(true)
+    setActivePage("compliance")
 
     // Mark as viewed
     const events = JSON.parse(localStorage.getItem('global_events') || '{}')
@@ -270,11 +294,13 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
             onNavigate={handleNavigate}
             userEmail={currentUser?.email}
             userRole={currentUser?.role}
+            promotionCongrats={promotionCongrats}
+            onPromotionCongratsHandled={() => setPromotionCongrats(false)}
           />
         case "requests":
           return <EmployeeRequests />
         case "compliance":
-          return <EmployeeCompliance />
+          return <EmployeeCompliance autoOpenVisa={autoOpenVisa} />
         case "journal":
           return <EmployeeJournal />
         case "profile":
@@ -428,6 +454,13 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                         <span>Action required from you</span>
                       </div>
                     )}
+
+                    {selectedNotification?.type === 'promotion' && (
+                      <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 p-3 rounded">
+                        <TrendingUp className="h-4 w-4" />
+                        <span>Your promotion has been approved — view details in Ask HR</span>
+                      </div>
+                    )}
                   </div>
 
                   <DialogFooter>
@@ -437,7 +470,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                         selectedNotification?.type === 'document' ? 'Contracts' :
                           selectedNotification?.type === 'request_info' ? 'Requests' :
                             selectedNotification?.type === 'info_submitted' ? 'Workflows' :
-                              'Section'
+                              selectedNotification?.type === 'promotion' ? 'Ask HR' :
+                                'Section'
                       }
                     </Button>
                   </DialogFooter>

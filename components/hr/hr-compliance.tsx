@@ -360,7 +360,7 @@ export function HrCompliance() {
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-emerald-600" />
               <div className="flex flex-col">
-                <span className="text-xs font-normal text-muted-foreground uppercase tracking-wider">Manager View</span>
+                <span className="text-xs font-normal text-muted-foreground uppercase tracking-wider">Business View</span>
                 <span>Renewal Check: {selectedRenewal?.employee}</span>
               </div>
             </DialogTitle>
@@ -593,16 +593,20 @@ export function HrCompliance() {
       {/* Action Plan Modal */}
       <Dialog open={isActionPlanModalOpen} onOpenChange={setIsActionPlanModalOpen}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden bg-slate-950 text-slate-50 border-slate-800">
+          <DialogTitle className="sr-only">Action Plan: {selectedUpdate?.title}</DialogTitle>
           {/* Header */}
           <div className="p-6 border-b border-slate-800 flex justify-between items-start">
             <div>
               <div className="flex gap-2 mb-3">
-                <Badge variant="outline" className="text-slate-400 border-slate-700">Singapore</Badge>
-                <Badge variant="outline" className="text-red-400 border-red-900 bg-red-950/30">High Risk</Badge>
-                <Badge variant="outline" className="text-slate-400 border-slate-700">Effective: 1 September 2026</Badge>
+                <Badge variant="outline" className="text-slate-400 border-slate-700">{selectedUpdate?.source}</Badge>
+                <Badge variant="outline" className={`${selectedUpdate?.impact === 'High' ? 'text-red-400 border-red-900 bg-red-950/30' :
+                  selectedUpdate?.impact === 'Medium' ? 'text-orange-400 border-orange-900 bg-orange-950/30' :
+                    'text-green-400 border-green-900 bg-green-950/30'
+                  }`}>{selectedUpdate?.impact} Impact</Badge>
+                <Badge variant="outline" className="text-slate-400 border-slate-700">Affected: {selectedUpdate?.affected}</Badge>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">New COMPASS Framework Scoring Updates for EP Renewals</h2>
-              <p className="text-slate-400 max-w-2xl">MOM has updated the scoring criteria for the Complementarity Assessment Framework (COMPASS) affecting all Employment Pass renewals.</p>
+              <h2 className="text-2xl font-bold text-white mb-2">{selectedUpdate?.title}</h2>
+              <p className="text-slate-400 max-w-2xl">{selectedUpdate?.details}</p>
             </div>
             <div className="text-right">
               <p className="text-slate-400 text-sm mb-1">Action Completion</p>
@@ -615,29 +619,63 @@ export function HrCompliance() {
 
           <div className="p-6 overflow-y-auto max-h-[60vh] space-y-8">
             {/* Required Actions */}
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2 text-emerald-400">
-                  <CheckCircle2 className="h-5 w-5" /> Required HR Actions
-                </h3>
-                <span className="text-xs text-slate-500">0 of 3 completed</span>
-              </div>
-              <div className="space-y-3">
-                {['Audit current EP holders against new criteria', 'Adjust hiring plans for diversity scores', 'Prepare salary adjustments if necessary'].map((action, i) => (
-                  <div key={i} className="p-4 border border-slate-800 bg-slate-900/50 rounded-lg flex items-start gap-4">
-                    <div className="mt-1 h-4 w-4 rounded-full border border-slate-600"></div>
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-200">{action}</p>
-                      <div className="flex gap-4 mt-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Owner: HR Admin</span>
-                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: Within 7 days</span>
-                        <span className="text-amber-500">Priority: High</span>
-                      </div>
-                    </div>
+            {(() => {
+              const actionsByUpdate: Record<number, { actions: string[]; owners: string[]; priorities: string[] }> = {
+                1: {
+                  actions: [
+                    'Revise overtime pay calculation formula to comply with new base rate requirements',
+                    'Draft and publish formal hybrid work request policy for all employees',
+                    'Update Employee Handbook with revised labor law clauses'
+                  ],
+                  owners: ['Payroll Manager', 'HR Director', 'HR Admin'],
+                  priorities: ['High', 'High', 'Medium']
+                },
+                2: {
+                  actions: [
+                    'Notify Finance team of new June 15th filing deadline',
+                    'Update internal tax calendar and compliance tracker',
+                    'Review Form C-S/C submissions and adjust timeline accordingly'
+                  ],
+                  owners: ['Finance Lead', 'Compliance Officer', 'Finance Team'],
+                  priorities: ['High', 'Medium', 'Medium']
+                },
+                3: {
+                  actions: [
+                    'Schedule quarterly fire drill (previously semi-annual) for all office locations',
+                    'Audit and replace emergency exit signage to meet new requirements',
+                    'Conduct safety briefing for all staff on updated evacuation procedures'
+                  ],
+                  owners: ['Facilities Manager', 'Facilities Manager', 'HR Admin'],
+                  priorities: ['High', 'High', 'Medium']
+                }
+              }
+              const data = actionsByUpdate[selectedUpdate?.id] || actionsByUpdate[1]
+              return (
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 text-emerald-400">
+                      <CheckCircle2 className="h-5 w-5" /> Required HR Actions
+                    </h3>
+                    <span className="text-xs text-slate-500">0 of {data.actions.length} completed</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="space-y-3">
+                    {data.actions.map((action, i) => (
+                      <div key={i} className="p-4 border border-slate-800 bg-slate-900/50 rounded-lg flex items-start gap-4">
+                        <div className="mt-1 h-4 w-4 rounded-full border border-slate-600"></div>
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-200">{action}</p>
+                          <div className="flex gap-4 mt-2 text-xs text-slate-500">
+                            <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Owner: {data.owners[i]}</span>
+                            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: Within 7 days</span>
+                            <span className={data.priorities[i] === 'High' ? 'text-amber-500' : 'text-blue-400'}>Priority: {data.priorities[i]}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Timeline & Impact Grid */}
             <div className="grid grid-cols-2 gap-8">
@@ -647,21 +685,33 @@ export function HrCompliance() {
                   <Calendar className="h-5 w-5 text-slate-400" /> Implementation Timeline
                 </h3>
                 <div className="space-y-6 relative pl-4 border-l border-slate-800 ml-2">
-                  <div className="relative">
-                    <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-emerald-500"></div>
-                    <h4 className="font-medium text-white">Immediate Action</h4>
-                    <p className="text-sm text-slate-400 mt-1">Review policy & notify stakeholders</p>
-                  </div>
-                  <div className="relative">
-                    <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-slate-600"></div>
-                    <h4 className="font-medium text-slate-300">Before Effective Date</h4>
-                    <p className="text-sm text-slate-400 mt-1">Update handbooks & configure payroll</p>
-                  </div>
-                  <div className="relative">
-                    <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-slate-600"></div>
-                    <h4 className="font-medium text-white">1 September 2026</h4>
-                    <p className="text-sm text-slate-400 mt-1">Go-live & enforcement starts</p>
-                  </div>
+                  {(() => {
+                    const timelinesByUpdate: Record<number, { title: string; desc: string }[]> = {
+                      1: [
+                        { title: 'Immediate Action', desc: 'Review new overtime formula & notify payroll team' },
+                        { title: 'Within 2 Weeks', desc: 'Draft hybrid work policy & update employee handbook' },
+                        { title: 'Within 30 Days', desc: 'Publish updated handbook & begin enforcement' }
+                      ],
+                      2: [
+                        { title: 'Immediate Action', desc: 'Notify finance department of deadline extension' },
+                        { title: 'By May 30', desc: 'Complete and review all Form C-S/C filings' },
+                        { title: 'June 15 Deadline', desc: 'Submit all corporate tax returns' }
+                      ],
+                      3: [
+                        { title: 'Immediate Action', desc: 'Audit all emergency exit signage for compliance' },
+                        { title: 'Within 2 Weeks', desc: 'Install new signage & schedule first quarterly drill' },
+                        { title: 'Ongoing (Quarterly)', desc: 'Conduct fire drills every quarter per new mandate' }
+                      ]
+                    }
+                    const steps = timelinesByUpdate[selectedUpdate?.id] || timelinesByUpdate[1]
+                    return steps.map((step, i) => (
+                      <div key={i} className="relative">
+                        <div className={`absolute -left-[21px] top-1 h-3 w-3 rounded-full ${i === 0 ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
+                        <h4 className="font-medium text-white">{step.title}</h4>
+                        <p className="text-sm text-slate-400 mt-1">{step.desc}</p>
+                      </div>
+                    ))
+                  })()}
                 </div>
               </div>
 
@@ -671,19 +721,37 @@ export function HrCompliance() {
                   <Users className="h-5 w-5 text-slate-400" /> Department Impact
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { name: 'HR Dept', desc: 'Policy updates, handbook revision' },
-                    { name: 'Payroll', desc: 'System logic updates, tax calc' },
-                    { name: 'IT / Systems', desc: 'ZeroHR configuration, audit logs' },
-                    { name: 'Management', desc: 'Budget approval, risk oversight' }
-                  ].map((dept, i) => (
-                    <div key={i} className="p-3 border border-slate-800 rounded bg-slate-900/30">
-                      <div className="flex items-center gap-2 mb-2 text-slate-300 font-medium text-sm">
-                        <div className="h-2 w-2 rounded-full bg-slate-500"></div> {dept.name}
+                  {(() => {
+                    const deptsByUpdate: Record<number, { name: string; desc: string }[]> = {
+                      1: [
+                        { name: 'HR Dept', desc: 'Policy revision, handbook update, hybrid work process' },
+                        { name: 'Payroll', desc: 'Overtime formula changes, base rate recalculation' },
+                        { name: 'Legal', desc: 'Contract compliance review, labor law alignment' },
+                        { name: 'Management', desc: 'Hybrid work approval workflows, budget impact' }
+                      ],
+                      2: [
+                        { name: 'Finance', desc: 'Filing schedule adjustment, Form C-S/C preparation' },
+                        { name: 'Accounting', desc: 'Revenue reconciliation, tax provision updates' },
+                        { name: 'Compliance', desc: 'Deadline tracker updates, audit trail documentation' },
+                        { name: 'Management', desc: 'CFO sign-off, budget forecast adjustments' }
+                      ],
+                      3: [
+                        { name: 'Facilities', desc: 'Signage overhaul, drill scheduling, safety equipment' },
+                        { name: 'HR Dept', desc: 'Staff safety briefing, training records update' },
+                        { name: 'IT / Systems', desc: 'Emergency notification systems, digital signage' },
+                        { name: 'All Departments', desc: 'Evacuation procedure awareness, drill participation' }
+                      ]
+                    }
+                    const depts = deptsByUpdate[selectedUpdate?.id] || deptsByUpdate[1]
+                    return depts.map((dept, i) => (
+                      <div key={i} className="p-3 border border-slate-800 rounded bg-slate-900/30">
+                        <div className="flex items-center gap-2 mb-2 text-slate-300 font-medium text-sm">
+                          <div className="h-2 w-2 rounded-full bg-slate-500"></div> {dept.name}
+                        </div>
+                        <p className="text-xs text-slate-500 leading-tight">{dept.desc}</p>
                       </div>
-                      <p className="text-xs text-slate-500 leading-tight">{dept.desc}</p>
-                    </div>
-                  ))}
+                    ))
+                  })()}
                 </div>
               </div>
             </div>
@@ -697,7 +765,11 @@ export function HrCompliance() {
                     <Sparkles className="h-5 w-5 text-indigo-400" /> ZeroHR Automation Available
                   </h3>
                   <p className="text-slate-400 text-sm mb-3">We can handle some of these tasks for you.</p>
-                  <p className="text-slate-300 max-w-lg">ZeroHR's Workforce Analytics can simulate COMPASS scores for current employees and candidates.</p>
+                  <p className="text-slate-300 max-w-lg">
+                    {selectedUpdate?.id === 1 && "ZeroHR can auto-update your payroll formulas and generate a hybrid work policy template based on common industry standards."}
+                    {selectedUpdate?.id === 2 && "ZeroHR can auto-update your compliance calendar and send deadline reminders to the Finance team."}
+                    {selectedUpdate?.id === 3 && "ZeroHR can auto-schedule quarterly fire drills and generate updated emergency signage templates."}
+                  </p>
                 </div>
                 <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-900/20">Auto-Apply Changes</Button>
               </div>

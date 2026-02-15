@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { AlertTriangle, CheckCircle2, Clock, Globe, Shield, Stethoscope, ArrowRight, X, Upload, Download, Sparkles, Check, FileText, Loader2 } from "lucide-react"
-import { useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,8 +9,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 type ModalType = "visa" | "training" | "appointment" | null
 
-export function EmployeeCompliance() {
+export function EmployeeCompliance({ autoOpenVisa }: { autoOpenVisa?: boolean }) {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
+
+  useEffect(() => {
+    if (autoOpenVisa) {
+      setActiveModal("visa")
+    }
+  }, [autoOpenVisa])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
