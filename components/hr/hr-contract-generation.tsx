@@ -620,7 +620,30 @@ export function HrContractGeneration() {
     const recipientEmail = selectedPerson && 'email' in selectedPerson ? selectedPerson.email : ''
     const docLabel = documentTypes.find(t => t.id === selectedDocType)?.label || 'Document'
     const subject = encodeURIComponent(`${docLabel} - ${formData.name}`)
-    const body = encodeURIComponent(`Please find your ${docLabel} attached.`)
+
+    // Calculate deadline (14 days from now)
+    const deadline = new Date()
+    deadline.setDate(deadline.getDate() + 14)
+    const deadlineStr = deadline.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+    const body = encodeURIComponent(
+      `Dear ${formData.name},
+
+We are pleased to inform you that your employment contract with ZeroHR is now ready.
+
+Please find attached your official employment contract for your review. Kindly read through the document carefully. If all details are in order, please sign the contract and return a scanned copy to us by ${deadlineStr}.
+
+Should you have any questions or require clarification on any part of the contract, feel free to contact us. We will be happy to assist.
+
+We look forward to welcoming you to ZeroHR and wish you every success in your new role.
+
+Best regards,
+Sarah Chen
+HR Director
+ZeroHR
+hr@zerohr.com
++65 6123 4567`
+    )
     window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${recipientEmail}&su=${subject}&body=${body}`, '_blank')
   }
 

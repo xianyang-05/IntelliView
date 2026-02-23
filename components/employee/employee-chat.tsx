@@ -74,14 +74,23 @@ export function EmployeeChat({ onNavigate, userEmail, userRole, promotionCongrat
   const [viewingProof, setViewingProof] = useState(false)
   const [proofSection, setProofSection] = useState<string | undefined>(undefined)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('askhr_chat_history')
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          if (parsed.length > 0) return parsed
+        } catch { }
+      }
+    }
+    return [{
       id: 1,
-      sender: "bot",
+      sender: "bot" as const,
       content: getGreeting(userRole),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ])
+    }]
+  })
 
   const chatHistory = [
     { title: "Leave policy questions", date: "Yesterday", messages: 8 },
@@ -89,6 +98,18 @@ export function EmployeeChat({ onNavigate, userEmail, userRole, promotionCongrat
     { title: "Expense reimbursement", date: "1 week ago", messages: 6 },
     { title: "Remote work setup", date: "2 weeks ago", messages: 10 }
   ]
+
+  // Persist messages to localStorage
+  useEffect(() => {
+    localStorage.setItem('askhr_chat_history', JSON.stringify(messages))
+  }, [messages])
+
+  // Hide suggestions if there are already conversations
+  useEffect(() => {
+    if (messages.length > 1) {
+      setShowSuggestions(false)
+    }
+  }, [])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -114,6 +135,21 @@ export function EmployeeChat({ onNavigate, userEmail, userRole, promotionCongrat
     }
   }, [promotionCongrats])
 
+  // Out-of-scope question patterns (checked client-side, no server call)
+  const OUT_OF_SCOPE_PATTERNS = [
+    /performance\s+rat(ing|e|ings)/i,
+    /rate\s+(my|each|the|team)\s+(team|member|employee)/i,
+    /team\s+member.*rating/i,
+    /rating.*team\s+member/i,
+    /appraisal\s+(score|rating|result)/i,
+    /kpi\s+(score|rating|result)/i,
+    /employee\s+performance\s+score/i,
+  ]
+
+  const isOutOfScope = (text: string): boolean => {
+    return OUT_OF_SCOPE_PATTERNS.some(pattern => pattern.test(text))
+  }
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
 
@@ -129,6 +165,21 @@ export function EmployeeChat({ onNavigate, userEmail, userRole, promotionCongrat
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
     setMessages(prev => [...prev, userMsg])
+
+    // Check for out-of-scope questions before calling server
+    if (isOutOfScope(userMessage)) {
+      const outOfScopeMsg: ChatMessage = {
+        id: messages.length + 2,
+        sender: "bot",
+        content: "🚫 Sorry, this question is **out of my scope**.\n\nI'm not able to provide performance ratings or appraisal scores for team members. Performance evaluations are confidential and should be discussed directly with your manager or the HR department through the proper review channels.\n\nIs there anything else I can help you with?",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        source: "System Policy",
+        confidence: "high"
+      }
+      setMessages(prev => [...prev, outOfScopeMsg])
+      return
+    }
+
     setIsLoading(true)
 
     try {

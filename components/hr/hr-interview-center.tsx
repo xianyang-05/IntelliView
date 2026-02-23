@@ -268,8 +268,8 @@ export function HrInterviewCenter({ onNavigate }: { onNavigate?: (page: string) 
     // Offer form state
     const [offerForm, setOfferForm] = useState({
         position: "",
-        salary: "",
-        startDate: "",
+        salary: "8000",
+        startDate: "2026-03-15",
         benefits: "Medical, Dental, Vision, EPF, SOCSO, Annual Leave (14 days)",
         contractType: "permanent",
         probation: "3",

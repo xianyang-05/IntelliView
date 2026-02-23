@@ -359,10 +359,7 @@ export function HrCompliance() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-emerald-600" />
-              <div className="flex flex-col">
-                <span className="text-xs font-normal text-muted-foreground uppercase tracking-wider">Business View</span>
-                <span>Renewal Check: {selectedRenewal?.employee}</span>
-              </div>
+              <span>Business Team View: {selectedRenewal?.employee}</span>
             </DialogTitle>
             <DialogDescription>
               Review performance and approve renewal for {selectedRenewal?.visaType}

@@ -103,21 +103,20 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [autoOpenVisa, setAutoOpenVisa] = useState(false)
   const [promotionCongrats, setPromotionCongrats] = useState(false)
 
-  // Seed promotion notification on first load
+  // Ensure promotion notification is always present
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
-    const hasPromotion = stored.some((n: any) => n.type === 'promotion')
-    if (!hasPromotion) {
-      stored.push({
-        id: 'promo_' + Date.now(),
-        type: 'promotion',
-        title: '🎉 Promotion Approved!',
-        message: 'Congratulations! You have been promoted to Senior Software Engineer effective March 1, 2026. Your new compensation package and updated role details are being prepared.',
-        timestamp: new Date().toISOString(),
-        read: false
-      })
-      localStorage.setItem('notifications', JSON.stringify(stored))
-    }
+    // Remove any existing promotion notifications and re-add as unread
+    const filtered = stored.filter((n: any) => n.type !== 'promotion')
+    filtered.push({
+      id: 'promo_permanent',
+      type: 'promotion',
+      title: '🎉 Promotion Approved!',
+      message: 'Congratulations! You have been promoted to Senior Software Engineer effective March 1, 2026. Your new compensation package and updated role details are being prepared.',
+      timestamp: new Date().toISOString(),
+      read: false
+    })
+    localStorage.setItem('notifications', JSON.stringify(filtered))
   }, [])
 
   const handleNavigate = (page: string, payload?: any) => {

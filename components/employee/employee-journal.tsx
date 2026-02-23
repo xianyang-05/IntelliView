@@ -323,11 +323,11 @@ export function EmployeeJournal() {
                     <div className="flex gap-4 items-end">
                         <div className="flex-1 space-y-2">
                             <Label className="text-xs">New KPI Goal</Label>
-                            <Input placeholder="E.g. Increase unit test coverage to 80%" />
+                            <Input defaultValue="Increase unit test coverage to 80%" placeholder="E.g. Increase unit test coverage to 80%" />
                         </div>
                         <div className="flex-1 space-y-2">
                             <Label className="text-xs">Reason for Change</Label>
-                            <Input placeholder="E.g. Project priorities shifted..." />
+                            <Input defaultValue="Project priorities have shifted towards stability and reducing technical debt. This goal aligns better with the new Q2 roadmap than the previous feature-velocity goal." placeholder="E.g. Project priorities shifted..." />
                         </div>
                         <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => handleOpenManagerView('kpi')}>
                             <Send className="h-3 w-3 mr-2" />
