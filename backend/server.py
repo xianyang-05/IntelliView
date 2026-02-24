@@ -4,13 +4,18 @@ import subprocess
 import json
 import re
 from datetime import datetime
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import chromadb
+import fitz  # PyMuPDF
+import google.generativeai as genai
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import anthropic
 from supabase import create_client, Client
-import chromadb
+import tempfile
+import traceback
 
 load_dotenv()  # Load .env if exists
 _env_local = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
@@ -30,6 +35,20 @@ app.add_middleware(
 
 # Claude client
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# Gemini client
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    print(f"✅ Gemini API configured")
+else:
+    gemini_model = None
+    print("⚠️  GEMINI_API_KEY not set — resume analyzer will not work")
+
+# Reports directory
+REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 # Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
@@ -979,6 +998,241 @@ async def sync_policies():
 async def health():
     chroma_status = "loaded" if chroma_collection else "not_loaded"
     return {"status": "ok", "chroma": chroma_status}
+
+
+# ═══════════════════════════════════════════════════
+# RESUME ANALYZER
+# ═══════════════════════════════════════════════════
+
+@app.post("/api/analyze-resume")
+async def analyze_resume(
+    resume: UploadFile = File(...),
+    job_description: str = Form(...),
+):
+    """Analyze a resume PDF against a job description using Claude AI."""
+    print(f"📄 Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
+
+    try:
+        # ── STEP 1: Extract text with PyMuPDF ──
+        print("📝 Step 1: Extracting text from PDF...")
+        contents = await resume.read()
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        try:
+            doc = fitz.open(tmp_path)
+            extracted_text = ""
+            num_pages = doc.page_count
+            for page in doc:
+                extracted_text += page.get_text()
+            doc.close()
+        finally:
+            os.unlink(tmp_path)
+
+        if not extracted_text.strip():
+            return {"detail": "Could not extract any text from the PDF. The file may be scanned or image-based."}
+
+        print(f"   ✅ Extracted {len(extracted_text)} characters from {num_pages} pages")
+
+        # ── STEP 2: Analyze with Claude ──
+        print("🧠 Step 2: Analyzing resume with Claude...")
+
+        analysis_prompt = f"""You are an expert HR resume analyst. Analyze the following resume against the provided job description.
+
+Evaluate the resume based on these 6 criteria, listed in descending order of importance:
+
+1. **Job Relevance** (Weight: 30%) — How well the resume aligns with the specific job description requirements
+2. **Hard Skills Match** (Weight: 25%) — Technical skills, tools, technologies, and certifications matching the job requirements
+3. **Soft Skills** (Weight: 15%) — Communication, leadership, teamwork, problem-solving indicators
+4. **Work Experience** (Weight: 15%) — Relevance, depth, and progression of professional experience
+5. **Achievements** (Weight: 10%) — Quantifiable accomplishments, awards, and measurable impact
+6. **Education** (Weight: 5%) — Academic background, relevant coursework, and qualifications
+
+For each criterion, provide:
+- A score from 0 to 100
+- A brief explanation (2-3 sentences) justifying the score
+
+Also provide a short overall summary (3-4 sentences) of the candidate's fit.
+
+Return your response as valid JSON in this exact format:
+{{
+  "criteria": [
+    {{
+      "criterion": "Job Relevance",
+      "weight": 30,
+      "score": <number>,
+      "explanation": "<text>"
+    }},
+    {{
+      "criterion": "Hard Skills Match",
+      "weight": 25,
+      "score": <number>,
+      "explanation": "<text>"
+    }},
+    {{
+      "criterion": "Soft Skills",
+      "weight": 15,
+      "score": <number>,
+      "explanation": "<text>"
+    }},
+    {{
+      "criterion": "Work Experience",
+      "weight": 15,
+      "score": <number>,
+      "explanation": "<text>"
+    }},
+    {{
+      "criterion": "Achievements",
+      "weight": 10,
+      "score": <number>,
+      "explanation": "<text>"
+    }},
+    {{
+      "criterion": "Education",
+      "weight": 5,
+      "score": <number>,
+      "explanation": "<text>"
+    }}
+  ],
+  "summary": "<overall summary text>"
+}}
+
+--- RESUME TEXT ---
+{extracted_text[:8000]}
+
+--- JOB DESCRIPTION ---
+{job_description[:3000]}
+
+Respond with ONLY the JSON object, no extra text."""
+
+        analysis_response = claude_client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": analysis_prompt}],
+        )
+        raw_analysis = analysis_response.content[0].text.strip()
+
+        # Parse JSON from Claude response
+        json_match = re.search(r'(\{.*\})', raw_analysis, re.DOTALL)
+        if json_match:
+            analysis_data = json.loads(json_match.group(1))
+        else:
+            analysis_data = json.loads(raw_analysis)
+
+        criteria = analysis_data.get("criteria", [])
+        summary = analysis_data.get("summary", "")
+
+        # Calculate weighted total
+        weighted_total = sum(
+            (c["score"] * c["weight"] / 100) for c in criteria
+        )
+
+        print(f"   ✅ Analysis complete. Weighted score: {weighted_total:.1f}/100")
+
+        # ── STEP 3: Generate fact-checking questions ──
+        print("❓ Step 3: Generating fact-checking questions...")
+
+        questions_prompt = f"""Based on the following resume content, generate 5 to 8 personalized interview questions designed to fact-check and verify the claims made in the resume.
+
+Focus on:
+- Verifiable claims (specific dates, numbers, metrics, percentages)
+- Technical skills mentioned (ask them to elaborate or solve a related problem)
+- Stated achievements (ask for specific details or evidence)
+- Project involvement (ask about their specific contribution and role)
+- Employment transitions (ask about reasons and timelines)
+
+Return your response as a JSON array of strings:
+["Question 1", "Question 2", ...]
+
+--- RESUME TEXT ---
+{extracted_text[:6000]}
+
+Respond with ONLY the JSON array, no extra text."""
+
+        questions_response = claude_client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": questions_prompt}],
+        )
+        raw_questions = questions_response.content[0].text.strip()
+
+        # Parse JSON questions
+        json_arr_match = re.search(r'(\[.*\])', raw_questions, re.DOTALL)
+        if json_arr_match:
+            fact_check_questions = json.loads(json_arr_match.group(1))
+        else:
+            fact_check_questions = json.loads(raw_questions)
+
+        print(f"   ✅ Generated {len(fact_check_questions)} fact-checking questions")
+
+        # ── COMPILE REPORT ──
+        print("📋 Compiling report...")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_filename = f"resume_analysis_{timestamp}.txt"
+        report_path = os.path.join(REPORTS_DIR, report_filename)
+
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("=" * 60 + "\n")
+            f.write("  RESUME ANALYSIS REPORT\n")
+            f.write(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"  File: {resume.filename}\n")
+            f.write("=" * 60 + "\n\n")
+
+            f.write("─" * 40 + "\n")
+            f.write(f"  WEIGHTED TOTAL SCORE: {weighted_total:.1f} / 100\n")
+            f.write("─" * 40 + "\n\n")
+
+            f.write("OVERALL SUMMARY\n")
+            f.write("-" * 40 + "\n")
+            f.write(f"{summary}\n\n")
+
+            f.write("CRITERIA BREAKDOWN\n")
+            f.write("-" * 40 + "\n")
+            for c in criteria:
+                f.write(f"\n  {c['criterion']} (Weight: {c['weight']}%)\n")
+                f.write(f"  Score: {c['score']}/100\n")
+                f.write(f"  {c['explanation']}\n")
+
+            f.write("\n\nFACT-CHECKING QUESTIONS\n")
+            f.write("-" * 40 + "\n")
+            for i, q in enumerate(fact_check_questions, 1):
+                f.write(f"\n  {i}. {q}\n")
+
+            f.write("\n" + "=" * 60 + "\n")
+            f.write("  END OF REPORT\n")
+            f.write("=" * 60 + "\n")
+
+        print(f"   ✅ Report saved to {report_path}")
+
+        return {
+            "criteria": criteria,
+            "weighted_total": round(weighted_total, 1),
+            "summary": summary,
+            "fact_check_questions": fact_check_questions,
+            "report_path": report_filename,
+        }
+
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parse error: {e}")
+        traceback.print_exc()
+        return {"detail": f"Failed to parse AI response: {str(e)}"}
+    except Exception as e:
+        print(f"❌ Resume analysis error: {e}")
+        traceback.print_exc()
+        return {"detail": f"Analysis failed: {str(e)}"}
+
+
+@app.get("/api/download-report")
+async def download_report(path: str):
+    """Download a generated analysis report."""
+    # Security: only allow filenames, no path traversal
+    safe_name = os.path.basename(path)
+    full_path = os.path.join(REPORTS_DIR, safe_name)
+    if not os.path.isfile(full_path):
+        return {"detail": "Report not found"}
+    return FileResponse(full_path, filename=safe_name, media_type="text/plain")
 
 
 # ═══════════════════════════════════════════════════

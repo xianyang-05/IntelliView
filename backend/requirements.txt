@@ -6,3 +6,6 @@ supabase
 chromadb
 pydantic
 websockets
+PyMuPDF
+google-generativeai
+python-multipart

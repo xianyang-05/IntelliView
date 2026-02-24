@@ -1,0 +1,58 @@
+============================================================
+  RESUME ANALYSIS REPORT
+  Generated: 2026-02-24 16:12:49
+  File: CHEN YONG JEEN RESUME.pdf
+============================================================
+
+────────────────────────────────────────
+  WEIGHTED TOTAL SCORE: 77.2 / 100
+────────────────────────────────────────
+
+OVERALL SUMMARY
+----------------------------------------
+The candidate's resume demonstrates a strong alignment with the software engineering position, with a relevant educational background, solid hard and soft skills, and some work experience in the IT industry. The combination of their technical knowledge, leadership experience, and problem-solving abilities make them a promising candidate for the role. However, additional details about their specific technical expertise and quantifiable achievements would further strengthen their application.
+
+CRITERIA BREAKDOWN
+----------------------------------------
+
+  Job Relevance (Weight: 30%)
+  Score: 80/100
+  The candidate's educational background in computer science with a focus on software engineering aligns well with the job requirements. Their experience in coding competitions and IT-related internships further demonstrate their relevant skills and knowledge.
+
+  Hard Skills Match (Weight: 25%)
+  Score: 75/100
+  The resume highlights the candidate's programming skills, computer networking knowledge, and familiarity with computers, which are relevant hard skills for a software engineering role. However, more specific details about their technical expertise and proficiency in relevant tools/technologies would be beneficial.
+
+  Soft Skills (Weight: 15%)
+  Score: 80/100
+  The candidate's experience in leadership roles, such as vice president of the Interact Club and vice head of the Logistics team, along with their teamwork skills gained from basketball and event management, indicate strong soft skills that are valuable for a software engineering position.
+
+  Work Experience (Weight: 15%)
+  Score: 70/100
+  The candidate has relevant work experience, including an internship at an IT department and a service crew role, which provided them with exposure to the IT industry and customer service. However, more detailed information about their specific responsibilities and achievements in these roles would strengthen their work experience profile.
+
+  Achievements (Weight: 10%)
+  Score: 75/100
+  The candidate has a notable achievement as a gold award winner in a computer programming competition, which demonstrates their technical problem-solving and coding abilities. Additional quantifiable achievements or awards would further strengthen this aspect of the resume.
+
+  Education (Weight: 5%)
+  Score: 90/100
+  The candidate has a strong educational background, including a bachelor's degree in computer science with a focus on software engineering, as well as a solid academic record with excellent SPM and matriculation results.
+
+
+FACT-CHECKING QUESTIONS
+----------------------------------------
+
+  1. What were your specific responsibilities and achievements as the Vice President of the Interact Club?
+
+  2. Can you provide more details on the gold award you won at the PERTANDINGAN PENGATURCARAAN KOMPUTER (PPKomp) competition, such as the number of competitors, the complexity of the problems solved, and your role in the team?
+
+  3. Can you walk me through a step-by-step process of setting up a PC and building a PC, based on the experience you gained at Gleneagles Hospital Penang?
+
+  4. What were your specific contributions and responsibilities as the Vice Head of the Department of Logistics team in the UM Chinese Community Service Group?
+
+  5. Can you provide more details on the 'top-notch service' and 'astonishing teamwork' you experienced during your time as a service crew at Shokudo Niban?
+
+============================================================
+  END OF REPORT
+============================================================

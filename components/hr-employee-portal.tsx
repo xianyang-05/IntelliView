@@ -16,7 +16,7 @@ import { HrPerformance } from "./hr/hr-performance-main"
 import { HrAiDecisionReview } from "./hr/hr-ai-decision-review"
 import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
-import { IntelliViewHome } from "./intelliview/intelliview-home"
+import { CandidateHome } from "./candidate/candidate-home"
 import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
 import {
@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-type PortalMode = "employee" | "hr" | "intelliview"
+type PortalMode = "employee" | "hr" | "candidate"
 
 function NavItem({
   item,
@@ -102,11 +102,11 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     { id: "ai-decision-review", label: "AI Decision Review", icon: Brain },
   ]
 
-  const intelliviewNav = [
-    { id: "iv-home", label: "Home", icon: Home },
+  const candidateNav = [
+    { id: "candidate-home", label: "Home", icon: Home },
   ]
 
-  const currentNav = portalMode === "hr" ? hrNav : portalMode === "intelliview" ? intelliviewNav : employeeNav
+  const currentNav = portalMode === "hr" ? hrNav : portalMode === "candidate" ? candidateNav : employeeNav
 
   // Notification State
   const [notifications, setNotifications] = useState<any[]>([])
@@ -282,12 +282,12 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           return <HrDashboard />
       }
     } else {
-      // IntelliView
+      // Candidate
       switch (activePage) {
-        case "iv-home":
-          return <IntelliViewHome />
+        case "candidate-home":
+          return <CandidateHome />
         default:
-          return <IntelliViewHome />
+          return <CandidateHome />
       }
     }
   }
@@ -310,14 +310,14 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                 setPortalMode(value)
                 if (value === "hr") handleNavigate("dashboard")
                 else if (value === "employee") handleNavigate("home")
-                else handleNavigate("iv-home")
+                else handleNavigate("candidate-home")
               }}
             >
               <SelectTrigger className="w-full bg-secondary border-none h-11">
                 <div className="flex items-center gap-2">
                   {portalMode === "employee" && <User className="h-4 w-4 text-muted-foreground" />}
                   {portalMode === "hr" && <Building2 className="h-4 w-4 text-muted-foreground" />}
-                  {portalMode === "intelliview" && <Eye className="h-4 w-4 text-muted-foreground" />}
+                  {portalMode === "candidate" && <Eye className="h-4 w-4 text-muted-foreground" />}
                   <SelectValue />
                 </div>
               </SelectTrigger>
@@ -334,10 +334,10 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                     HR Portal
                   </div>
                 </SelectItem>
-                <SelectItem value="intelliview">
+                <SelectItem value="candidate">
                   <div className="flex items-center gap-2">
                     <Eye className="h-4 w-4" />
-                    IntelliView
+                    Candidate
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -622,7 +622,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         </div>
 
         {/* Real-Time Chat Widget */}
-        {portalMode !== "intelliview" && <ChatWidget isHrMode={portalMode === "hr"} />}
+        {portalMode !== "candidate" && <ChatWidget isHrMode={portalMode === "hr"} />}
       </main>
     </div>
   )
