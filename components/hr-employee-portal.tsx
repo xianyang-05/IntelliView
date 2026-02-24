@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, Workflow, Shield, Archive, BookOpen, TrendingUp, Calendar, Users } from "lucide-react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { EmployeeHome } from "./employee/employee-home"
 import { EmployeeContracts } from "./employee/employee-contracts"
@@ -13,12 +12,11 @@ import { EmployeeCompliance } from "./employee/employee-compliance"
 import { EmployeeJournal } from "./employee/employee-journal"
 import { HrDashboard } from "./hr/hr-dashboard"
 import { HrContractGeneration } from "./hr/hr-contract-generation"
-import { HrWorkflows } from "./hr/hr-workflows"
-import { HrCompliance } from "./hr/hr-compliance"
-import { HrVersionControl } from "./hr/hr-version-control"
 import { HrPerformance } from "./hr/hr-performance-main"
+import { HrAiDecisionReview } from "./hr/hr-ai-decision-review"
 import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
+import { IntelliViewHome } from "./intelliview/intelliview-home"
 import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
 import {
@@ -29,75 +27,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+type PortalMode = "employee" | "hr" | "intelliview"
+
 function NavItem({
   item,
-  isHrMode,
   activePage,
-  notifications,
   setActivePage,
-  setNotifications,
 }: {
   item: { id: string; label: string; icon: any }
-  isHrMode: boolean
   activePage: string
-  notifications: any[]
   setActivePage: (page: string) => void
-  setNotifications: React.Dispatch<React.SetStateAction<any[]>>
 }) {
   const Icon = item.icon
-  const [isFirstVisit, setIsFirstVisit] = useState(false)
-
-  useEffect(() => {
-    if (item.id === 'compliance' && isHrMode) {
-      const hasVisited = localStorage.getItem('has_visited_compliance')
-      if (!hasVisited) setIsFirstVisit(true)
-    }
-  }, [item.id, isHrMode])
-
-  const showRedDot =
-    (isHrMode &&
-      item.id === 'compliance' &&
-      notifications.some((n) => n.type === 'compliance_alert' && !n.read)) ||
-    isFirstVisit
 
   return (
     <Button
       variant={activePage === item.id ? "secondary" : "ghost"}
       className="w-full justify-start relative"
-      onClick={() => {
-        setActivePage(item.id)
-        if (item.id === 'compliance') {
-          const stored = JSON.parse(localStorage.getItem('notifications') || '[]')
-          const updated = stored.map((n: any) =>
-            n.type === 'compliance_alert' ? { ...n, read: true } : n
-          )
-          localStorage.setItem('notifications', JSON.stringify(updated))
-          setNotifications((prev) =>
-            prev.map((n) =>
-              n.type === 'compliance_alert' ? { ...n, read: true } : n
-            )
-          )
-          localStorage.setItem('has_visited_compliance', 'true')
-          setIsFirstVisit(false)
-        }
-      }}
+      onClick={() => setActivePage(item.id)}
     >
-      <div className="relative">
-        <Icon className="h-4 w-4 mr-3" />
-        {showRedDot && (
-          <span className="absolute top-0 right-2 h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-        )}
-      </div>
+      <Icon className="h-4 w-4 mr-3" />
       {item.label}
     </Button>
   )
 }
 
 export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
-  const [isHrMode, setIsHrMode] = useState(false)
+  const [portalMode, setPortalMode] = useState<PortalMode>("employee")
   const [activePage, setActivePage] = useState("home")
   const [navPayload, setNavPayload] = useState<any>(null)
   const [autoOpenVisa, setAutoOpenVisa] = useState(false)
@@ -138,13 +98,15 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "interviews", label: "Interview Center", icon: Users },
     { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
-    { id: "workflows", label: "Workflows", icon: Workflow },
-    { id: "compliance", label: "Compliance & Audit", icon: Shield },
     { id: "performance", label: "Performance", icon: TrendingUp },
-    { id: "version-control", label: "Version Control", icon: Archive },
+    { id: "ai-decision-review", label: "AI Decision Review", icon: Brain },
   ]
 
-  const currentNav = isHrMode ? hrNav : employeeNav
+  const intelliviewNav = [
+    { id: "iv-home", label: "Home", icon: Home },
+  ]
+
+  const currentNav = portalMode === "hr" ? hrNav : portalMode === "intelliview" ? intelliviewNav : employeeNav
 
   // Notification State
   const [notifications, setNotifications] = useState<any[]>([])
@@ -156,14 +118,12 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       const stored = localStorage.getItem('notifications')
       if (stored) {
         const allNotifs = JSON.parse(stored)
-        // Filter based on mode
-        // In a real app, we'd filter by recipientId. Here we filter by type/context
-        if (isHrMode) {
-          // HR sees 'info_submitted' or system alerts
+        if (portalMode === "hr") {
           setNotifications(allNotifs.filter((n: any) => n.type === 'info_submitted' && !n.read))
-        } else {
-          // Employee sees 'document', 'request_info', or 'compliance_alert'
+        } else if (portalMode === "employee") {
           setNotifications(allNotifs.filter((n: any) => (n.type === 'document' || n.type === 'request_info' || n.type === 'compliance_alert' || n.type === 'promotion') && !n.read))
+        } else {
+          setNotifications([])
         }
       }
     }
@@ -171,7 +131,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     checkNotifications()
     const interval = setInterval(checkNotifications, 2000)
     return () => clearInterval(interval)
-  }, [isHrMode])
+  }, [portalMode])
 
   const handleViewNotification = (notif: any) => {
     // Mark as read
@@ -192,7 +152,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     } else if (selectedNotification.type === 'request_info') {
       setActivePage("requests")
     } else if (selectedNotification.type === 'info_submitted') {
-      setActivePage("workflows")
+      setActivePage("dashboard")
     } else if (selectedNotification.type === 'compliance_alert') {
       setActivePage("compliance")
     } else if (selectedNotification.type === 'promotion') {
@@ -221,8 +181,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   const [offerDetails, setOfferDetails] = useState<any>(null)
 
   useEffect(() => {
-    // Check for global events when not in HR mode
-    if (!isHrMode) {
+    if (portalMode === "employee") {
       const checkEvents = () => {
         const events = JSON.parse(localStorage.getItem('global_events') || '{}')
 
@@ -244,7 +203,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       const interval = setInterval(checkEvents, 2000)
       return () => clearInterval(interval)
     }
-  }, [isHrMode])
+  }, [portalMode])
 
   const handleVisaRenewalAction = () => {
     // Navigate to employee compliance page and auto-open visa renewal modal
@@ -282,7 +241,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   }
 
   const renderContent = () => {
-    if (!isHrMode) {
+    if (portalMode === "employee") {
       switch (activePage) {
         case "home":
           return <EmployeeHome />
@@ -307,7 +266,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         default:
           return <EmployeeHome />
       }
-    } else {
+    } else if (portalMode === "hr") {
       switch (activePage) {
         case "dashboard":
           return <HrDashboard />
@@ -317,14 +276,18 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           return <HrPerformance />
         case "contract-gen":
           return <HrContractGeneration />
-        case "workflows":
-          return <HrWorkflows />
-        case "compliance":
-          return <HrCompliance />
-        case "version-control":
-          return <HrVersionControl />
+        case "ai-decision-review":
+          return <HrAiDecisionReview />
         default:
           return <HrDashboard />
+      }
+    } else {
+      // IntelliView
+      switch (activePage) {
+        case "iv-home":
+          return <IntelliViewHome />
+        default:
+          return <IntelliViewHome />
       }
     }
   }
@@ -340,23 +303,45 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
               <span className="text-xl font-semibold">ZeroHR</span>
             </div>
 
-            {/* Portal Toggle */}
-            <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <Label htmlFor="portal-toggle" className="text-sm font-medium cursor-pointer">
-                  {isHrMode ? "HR Portal" : "Employee"}
-                </Label>
-              </div>
-              <Switch
-                id="portal-toggle"
-                checked={isHrMode}
-                onCheckedChange={(checked) => {
-                  setIsHrMode(checked)
-                  handleNavigate(checked ? "dashboard" : "home")
-                }}
-              />
-            </div>
+            {/* Portal Selector */}
+            <Select
+              value={portalMode}
+              onValueChange={(value: PortalMode) => {
+                setPortalMode(value)
+                if (value === "hr") handleNavigate("dashboard")
+                else if (value === "employee") handleNavigate("home")
+                else handleNavigate("iv-home")
+              }}
+            >
+              <SelectTrigger className="w-full bg-secondary border-none h-11">
+                <div className="flex items-center gap-2">
+                  {portalMode === "employee" && <User className="h-4 w-4 text-muted-foreground" />}
+                  {portalMode === "hr" && <Building2 className="h-4 w-4 text-muted-foreground" />}
+                  {portalMode === "intelliview" && <Eye className="h-4 w-4 text-muted-foreground" />}
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="employee">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Employee Portal
+                  </div>
+                </SelectItem>
+                <SelectItem value="hr">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    HR Portal
+                  </div>
+                </SelectItem>
+                <SelectItem value="intelliview">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    IntelliView
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Navigation */}
@@ -365,11 +350,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
               <NavItem
                 key={item.id}
                 item={item}
-                isHrMode={isHrMode}
                 activePage={activePage}
-                notifications={notifications}
                 setActivePage={setActivePage}
-                setNotifications={setNotifications}
               />
             ))}
           </nav>
@@ -405,7 +387,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                         <div className="flex flex-col gap-1">
                           <span className="font-medium text-sm">{notif.title || notif.type + ' Update'}</span>
                           <span className="text-xs text-muted-foreground">
-                            {notif.message || (isHrMode ? `${notif.employee} submitted info` : "HR sent an update")}
+                            {notif.message || (portalMode === "hr" ? `${notif.employee} submitted info` : "HR sent an update")}
                           </span>
                         </div>
                         <Button
@@ -494,7 +476,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => { setActivePage("profile"); setIsHrMode(false) }}>
+                  <DropdownMenuItem onClick={() => { setActivePage("profile"); setPortalMode("employee") }}>
                     <CircleUser className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
@@ -640,7 +622,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         </div>
 
         {/* Real-Time Chat Widget */}
-        <ChatWidget isHrMode={isHrMode} />
+        {portalMode !== "intelliview" && <ChatWidget isHrMode={portalMode === "hr"} />}
       </main>
     </div>
   )
