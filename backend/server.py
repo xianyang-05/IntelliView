@@ -1442,6 +1442,22 @@ async def download_report(path: str):
 
 
 # ═══════════════════════════════════════════════════
+# PERFORMANCE REVIEW
+# ═══════════════════════════════════════════════════
+
+@app.post("/api/performance-review")
+async def performance_review():
+    """Run the AI performance review pipeline."""
+    try:
+        from performance.pipeline import run_pipeline
+        results = run_pipeline()
+        return {"status": "success", "results": results}
+    except Exception as e:
+        print(f"Performance review error: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+# ═══════════════════════════════════════════════════
 # STARTUP
 # ═══════════════════════════════════════════════════
 
