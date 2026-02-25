@@ -27,6 +27,7 @@ interface JobListing {
     id: string
     title: string
     company: string
+    company_code: string
     location: string
     type: string
     salary_range: string

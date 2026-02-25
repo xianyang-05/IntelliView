@@ -47,6 +47,7 @@ interface JobListing {
     id: string
     title: string
     company: string
+    company_code: string
     location: string
     type: string
     salary_range: string
@@ -152,6 +153,7 @@ export function CandidateHome({ selectedJob, currentUser }: CandidateHomeProps) 
             formData.append("resume", uploadedFile)
             formData.append("job_description", buildJobDescription())
             formData.append("company_name", selectedJob.company)
+            formData.append("company_code", selectedJob.company_code || "")
             formData.append("job_title", selectedJob.title)
             formData.append("candidate_name", currentUser?.name || currentUser?.full_name || "Unknown Candidate")
 
@@ -180,6 +182,7 @@ export function CandidateHome({ selectedJob, currentUser }: CandidateHomeProps) 
             try {
                 const reportDoc = await addDoc(collection(db, "resume_reports"), {
                     company_name: selectedJob.company,
+                    company_code: selectedJob.company_code || "",
                     job_title: selectedJob.title,
                     candidate_name: currentUser?.name || currentUser?.full_name || "Unknown Candidate",
                     candidate_email: currentUser?.email || null,

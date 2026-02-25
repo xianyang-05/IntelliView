@@ -1,5 +1,5 @@
 /**
- * Seed script: Populates Firestore with mock job listings.
+ * Seed script: Populates Firestore with mock companies + job listings.
  *
  * Run with:  npx tsx scripts/seed-job-listings.ts
  */
@@ -23,11 +23,27 @@ if (getApps().length === 0) {
 
 const db = getFirestore()
 
+// ── Companies ──
+const COMPANIES = [
+    { name: "TechNova Solutions", company_code: "TECHNOVA-2026", policy_mode: "standard" },
+    { name: "Axiom Corp", company_code: "AXIOM-2026", policy_mode: "standard" },
+    { name: "GreenLeaf Ventures", company_code: "GREENLEAF-2026", policy_mode: "standard" },
+    { name: "Pinnacle Analytics", company_code: "PINNACLE-2026", policy_mode: "standard" },
+    { name: "CloudBridge Systems", company_code: "CLOUDBRIDGE-2026", policy_mode: "standard" },
+]
+
+// Map company name → company_code for quick lookup
+const companyCodeMap: Record<string, string> = {}
+for (const c of COMPANIES) {
+    companyCodeMap[c.name] = c.company_code
+}
+
 // ── Mock job listings ──
 const JOB_LISTINGS = [
     {
         title: "Senior Frontend Developer",
         company: "TechNova Solutions",
+        company_code: "TECHNOVA-2026",
         location: "Kuala Lumpur, Malaysia",
         type: "Full-time",
         salary_range: "RM 8,000 – RM 14,000",
@@ -45,6 +61,7 @@ const JOB_LISTINGS = [
     {
         title: "Backend Engineer",
         company: "Axiom Corp",
+        company_code: "AXIOM-2026",
         location: "Singapore",
         type: "Full-time",
         salary_range: "SGD 6,500 – SGD 11,000",
@@ -62,6 +79,7 @@ const JOB_LISTINGS = [
     {
         title: "UI/UX Designer",
         company: "GreenLeaf Ventures",
+        company_code: "GREENLEAF-2026",
         location: "Remote",
         type: "Contract",
         salary_range: "RM 5,000 – RM 9,000",
@@ -79,6 +97,7 @@ const JOB_LISTINGS = [
     {
         title: "Data Analyst",
         company: "Pinnacle Analytics",
+        company_code: "PINNACLE-2026",
         location: "Penang, Malaysia",
         type: "Full-time",
         salary_range: "RM 5,500 – RM 9,500",
@@ -96,6 +115,7 @@ const JOB_LISTINGS = [
     {
         title: "DevOps Engineer",
         company: "CloudBridge Systems",
+        company_code: "CLOUDBRIDGE-2026",
         location: "Kuala Lumpur, Malaysia",
         type: "Full-time",
         salary_range: "RM 9,000 – RM 15,000",
@@ -113,6 +133,7 @@ const JOB_LISTINGS = [
     {
         title: "Mobile Developer (React Native)",
         company: "TechNova Solutions",
+        company_code: "TECHNOVA-2026",
         location: "Remote",
         type: "Full-time",
         salary_range: "RM 7,000 – RM 12,000",
@@ -130,6 +151,7 @@ const JOB_LISTINGS = [
     {
         title: "HR Operations Intern",
         company: "GreenLeaf Ventures",
+        company_code: "GREENLEAF-2026",
         location: "Johor Bahru, Malaysia",
         type: "Part-time",
         salary_range: "RM 1,200 – RM 1,800",
@@ -147,6 +169,7 @@ const JOB_LISTINGS = [
     {
         title: "AI / ML Engineer",
         company: "Axiom Corp",
+        company_code: "AXIOM-2026",
         location: "Singapore",
         type: "Contract",
         salary_range: "SGD 8,000 – SGD 14,000",
@@ -164,8 +187,41 @@ const JOB_LISTINGS = [
 ]
 
 async function seed() {
-    console.log("🌱 Seeding job listings...\n")
+    console.log("🌱 Seeding companies & job listings...\n")
 
+    // ── Step 1: Seed companies ──
+    for (const company of COMPANIES) {
+        // Use company_code as the doc ID for easy lookup
+        const docRef = db.collection("companies").doc(company.company_code)
+        const existing = await docRef.get()
+        if (existing.exists) {
+            console.log(`⏭️  Company already exists: ${company.name} (${company.company_code})`)
+        } else {
+            await docRef.set({
+                name: company.name,
+                company_code: company.company_code,
+                policy_mode: company.policy_mode,
+                created_at: new Date().toISOString(),
+            })
+            console.log(`✅ Created company: ${company.name} (${company.company_code})`)
+        }
+    }
+
+    // ── Step 2: Delete all existing job listings ──
+    console.log("\n🗑️  Clearing old job listings...")
+    const existingDocs = await db.collection("job_listings").listDocuments()
+    if (existingDocs.length > 0) {
+        const deleteBatch = db.batch()
+        for (const doc of existingDocs) {
+            deleteBatch.delete(doc)
+        }
+        await deleteBatch.commit()
+        console.log(`   Deleted ${existingDocs.length} old listings`)
+    } else {
+        console.log("   No old listings to delete")
+    }
+
+    // ── Step 3: Seed new job listings ──
     const batch = db.batch()
 
     for (const job of JOB_LISTINGS) {
@@ -179,7 +235,7 @@ async function seed() {
     console.log("\nListings:")
     console.log("──────────────────────────────────────")
     for (const j of JOB_LISTINGS) {
-        console.log(`  ${j.title.padEnd(35)} │ ${j.company.padEnd(22)} │ ${j.type}`)
+        console.log(`  ${j.title.padEnd(35)} │ ${j.company.padEnd(22)} │ ${j.company_code}`)
     }
     console.log("──────────────────────────────────────")
     console.log("\n🎉 Done!")

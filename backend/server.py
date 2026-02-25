@@ -1190,6 +1190,7 @@ async def analyze_resume(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
     company_name: str = Form(""),
+    company_code: str = Form(""),
     job_title: str = Form(""),
     candidate_name: str = Form(""),
 ):
@@ -1395,6 +1396,7 @@ Respond with ONLY the JSON array, no extra text."""
         try:
             report_data = {
                 "company_name": company_name or "Unknown",
+                "company_code": company_code or "",
                 "job_title": job_title or "Unknown",
                 "candidate_name": candidate_name or "Unknown",
                 "score": round(weighted_total, 1),

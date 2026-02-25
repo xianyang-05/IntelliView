@@ -32,7 +32,7 @@ const DEMO_ACCOUNTS = [
         password: "demo-hr-2024",
         displayName: "Rachel Lim",
         role: "hr_admin",
-        companyId: "zerohr-demo",
+        companyId: "GREENLEAF-2026",
     },
     {
         email: "alex.chan@zerohr.com",

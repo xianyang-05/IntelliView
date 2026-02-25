@@ -285,7 +285,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         case "dashboard":
           return <HrDashboard />
         case "interviews":
-          return <HrInterviewCenter onNavigate={setActivePage} />
+          return <HrInterviewCenter onNavigate={setActivePage} currentUser={currentUser} />
         case "performance":
           return <HrPerformance />
         case "contract-gen":
