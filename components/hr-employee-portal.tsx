@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { signOut } from "next-auth/react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye } from "lucide-react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { EmployeeHome } from "./employee/employee-home"
@@ -18,6 +18,7 @@ import { HrAiDecisionReview } from "./hr/hr-ai-decision-review"
 import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
 import { CandidateHome } from "./candidate/candidate-home"
+import { JobBoard } from "./candidate/job-board"
 import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
 import {
@@ -65,7 +66,7 @@ function getInitialMode(role?: string): PortalMode {
 
 function getInitialPage(role?: string): string {
   if (role === "hr_admin") return "dashboard"
-  if (role === "candidate") return "candidate-home"
+  if (role === "candidate") return "job-board"
   return "home"
 }
 
@@ -116,7 +117,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
   ]
 
   const candidateNav = [
-    { id: "candidate-home", label: "Home", icon: Home },
+    { id: "job-board", label: "Job Board", icon: Briefcase },
   ]
 
   const currentNav = portalMode === "hr" ? hrNav : portalMode === "candidate" ? candidateNav : employeeNav
@@ -297,10 +298,12 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     } else {
       // Candidate
       switch (activePage) {
+        case "job-board":
+          return <JobBoard onNavigate={handleNavigate} />
         case "candidate-home":
-          return <CandidateHome />
+          return <CandidateHome selectedJob={navPayload} currentUser={currentUser} />
         default:
-          return <CandidateHome />
+          return <JobBoard onNavigate={handleNavigate} />
       }
     }
   }
@@ -323,7 +326,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                 setPortalMode(value)
                 if (value === "hr") handleNavigate("dashboard")
                 else if (value === "employee") handleNavigate("home")
-                else handleNavigate("candidate-home")
+                else handleNavigate("job-board")
               }}
             >
               <SelectTrigger className="w-full bg-secondary border-none h-11">

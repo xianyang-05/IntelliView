@@ -1189,6 +1189,9 @@ async def health():
 async def analyze_resume(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
+    company_name: str = Form(""),
+    job_title: str = Form(""),
+    candidate_name: str = Form(""),
 ):
     """Analyze a resume PDF against a job description using Claude AI."""
     print(f"Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
@@ -1387,12 +1390,32 @@ Respond with ONLY the JSON array, no extra text."""
 
         print(f"   Report saved to {report_path}")
 
+        # ── STEP 4: Save structured report to Firestore ──
+        report_id = None
+        try:
+            report_data = {
+                "company_name": company_name or "Unknown",
+                "job_title": job_title or "Unknown",
+                "candidate_name": candidate_name or "Unknown",
+                "score": round(weighted_total, 1),
+                "summary": summary,
+                "criteria": criteria,
+                "fact_check_questions": fact_check_questions,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            _, doc_ref = firestore_db.collection("resume_reports").add(report_data)
+            report_id = doc_ref.id
+            print(f"   Firestore report saved: {report_id}")
+        except Exception as fb_err:
+            print(f"   Firestore save error: {fb_err}")
+
         return {
             "criteria": criteria,
             "weighted_total": round(weighted_total, 1),
             "summary": summary,
             "fact_check_questions": fact_check_questions,
             "report_path": report_filename,
+            "report_id": report_id,
         }
 
     except json.JSONDecodeError as e:

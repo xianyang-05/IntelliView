@@ -20,12 +20,18 @@ import {
     File,
     Search,
     Loader2,
+    Building2,
+    MapPin,
+    DollarSign,
+    Briefcase,
+    ClipboardCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { AiInterview } from "./ai-interview"
+import { db } from "@/lib/firebase"
+import { collection, addDoc } from "firebase/firestore"
 
 // ─── Types ───────────────────────────────────────────
 interface AnalysisResult {
@@ -34,6 +40,25 @@ interface AnalysisResult {
     summary: string
     fact_check_questions: string[]
     report_path: string
+    report_id?: string
+}
+
+interface JobListing {
+    id: string
+    title: string
+    company: string
+    location: string
+    type: string
+    salary_range: string
+    description: string
+    requirements: string[]
+    posted_at: string
+    is_active: boolean
+}
+
+interface CandidateHomeProps {
+    selectedJob?: JobListing | null
+    currentUser?: any
 }
 
 // ─── Step indicator ──────────────────────────────────
@@ -59,13 +84,23 @@ function StepIndicator({ step, currentStep, label }: { step: number; currentStep
     )
 }
 
+function getCompanyGradient(company: string) {
+    const gradients: Record<string, string> = {
+        "TechNova Solutions": "from-blue-500 to-cyan-500",
+        "Axiom Corp": "from-violet-500 to-purple-500",
+        "GreenLeaf Ventures": "from-emerald-500 to-teal-500",
+        "Pinnacle Analytics": "from-orange-500 to-amber-500",
+        "CloudBridge Systems": "from-indigo-500 to-blue-500",
+    }
+    return gradients[company] || "from-slate-500 to-slate-600"
+}
+
 // ═════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════
-export function CandidateHome() {
+export function CandidateHome({ selectedJob, currentUser }: CandidateHomeProps) {
     const [uploadedFile, setUploadedFile] = useState<File | null>(null)
     const [isDragging, setIsDragging] = useState(false)
-    const [jobDescription, setJobDescription] = useState("")
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [analysisStep, setAnalysisStep] = useState(0)
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
@@ -97,9 +132,15 @@ export function CandidateHome() {
         }
     }
 
+    // ─── Build job description from selected job ─────
+    const buildJobDescription = () => {
+        if (!selectedJob) return ""
+        return `Position: ${selectedJob.title}\nCompany: ${selectedJob.company}\nLocation: ${selectedJob.location}\nType: ${selectedJob.type}\nSalary: ${selectedJob.salary_range}\n\nDescription:\n${selectedJob.description}\n\nRequirements:\n${selectedJob.requirements.map((r) => `- ${r}`).join("\n")}`
+    }
+
     // ─── Analyze resume ──────────────────────────────
     const handleAnalyze = async () => {
-        if (!uploadedFile || !jobDescription.trim()) return
+        if (!uploadedFile || !selectedJob) return
 
         setIsAnalyzing(true)
         setAnalysisError(null)
@@ -109,7 +150,10 @@ export function CandidateHome() {
         try {
             const formData = new FormData()
             formData.append("resume", uploadedFile)
-            formData.append("job_description", jobDescription)
+            formData.append("job_description", buildJobDescription())
+            formData.append("company_name", selectedJob.company)
+            formData.append("job_title", selectedJob.title)
+            formData.append("candidate_name", currentUser?.name || currentUser?.full_name || "Unknown Candidate")
 
             const stepTimer1 = setTimeout(() => setAnalysisStep(2), 2000)
             const stepTimer2 = setTimeout(() => setAnalysisStep(3), 5000)
@@ -132,6 +176,25 @@ export function CandidateHome() {
                 throw new Error(data.detail)
             }
 
+            // Save report to Firestore
+            try {
+                const reportDoc = await addDoc(collection(db, "resume_reports"), {
+                    company_name: selectedJob.company,
+                    job_title: selectedJob.title,
+                    candidate_name: currentUser?.name || currentUser?.full_name || "Unknown Candidate",
+                    candidate_email: currentUser?.email || null,
+                    score: data.weighted_total,
+                    summary: data.summary,
+                    criteria: data.criteria,
+                    fact_check_questions: data.fact_check_questions,
+                    created_at: new Date().toISOString(),
+                })
+                data.report_id = reportDoc.id
+                console.log("Report saved to Firestore:", reportDoc.id)
+            } catch (firebaseErr) {
+                console.error("Failed to save report to Firestore:", firebaseErr)
+            }
+
             setAnalysisResult(data)
             setAnalysisStep(4)
         } catch (err: any) {
@@ -145,6 +208,27 @@ export function CandidateHome() {
     // ─── Interview mode ──────────────────────────────
     if (showInterview) {
         return <AiInterview onEnd={() => setShowInterview(false)} />
+    }
+
+    // ─── No job selected state ───────────────────────
+    if (!selectedJob) {
+        return (
+            <div className="p-6 max-w-7xl mx-auto">
+                <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center">
+                            <Briefcase className="h-8 w-8 text-indigo-400" />
+                        </div>
+                        <div className="text-center space-y-1">
+                            <p className="font-semibold text-lg">No Position Selected</p>
+                            <p className="text-muted-foreground text-sm">
+                                Please select a job from the Job Board to begin your application.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )
     }
 
     // ═════════════════════════════════════════════════
@@ -165,16 +249,16 @@ export function CandidateHome() {
                                 AI-Powered Resume Analysis
                             </Badge>
                         </div>
-                        <h1 className="text-3xl font-bold tracking-tight">Candidate Portal</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Apply for Position</h1>
                         <p className="text-white/80 text-lg leading-relaxed">
-                            Upload your resume, get AI-powered analysis, and proceed to your AI screening interview — all in one place.
+                            Upload your resume and we'll analyze it against the position requirements using AI.
                         </p>
                     </div>
                     <div className="hidden lg:flex items-center justify-center">
                         <div className="relative">
                             <div className="absolute inset-0 bg-white/10 rounded-full blur-3xl scale-150" />
                             <div className="relative p-8 bg-white/10 backdrop-blur-md rounded-3xl border border-white/20">
-                                <Search className="h-20 w-20 text-white/90 animate-pulse" />
+                                <ClipboardCheck className="h-20 w-20 text-white/90 animate-pulse" />
                             </div>
                         </div>
                     </div>
@@ -185,6 +269,72 @@ export function CandidateHome() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column */}
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Position Details Card */}
+                    <Card className="overflow-hidden border-indigo-100">
+                        <CardHeader className="pb-3 bg-gradient-to-r from-indigo-50 to-violet-50">
+                            <div className="flex items-start gap-3">
+                                <div
+                                    className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getCompanyGradient(
+                                        selectedJob.company
+                                    )} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}
+                                >
+                                    {selectedJob.company
+                                        .split(" ")
+                                        .map((w) => w[0])
+                                        .join("")
+                                        .slice(0, 2)}
+                                </div>
+                                <div className="flex-1">
+                                    <CardTitle className="text-lg">{selectedJob.title}</CardTitle>
+                                    <CardDescription className="flex items-center gap-1 mt-0.5">
+                                        <Building2 className="h-3.5 w-3.5" />
+                                        {selectedJob.company}
+                                    </CardDescription>
+                                </div>
+                                <Badge
+                                    variant="outline"
+                                    className={`shrink-0 ${
+                                        selectedJob.type === "Full-time"
+                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                            : selectedJob.type === "Part-time"
+                                            ? "bg-amber-100 text-amber-700 border-amber-200"
+                                            : "bg-violet-100 text-violet-700 border-violet-200"
+                                    }`}
+                                >
+                                    {selectedJob.type}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-4 space-y-4">
+                            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1.5">
+                                    <MapPin className="h-4 w-4 text-indigo-500" />
+                                    {selectedJob.location}
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <DollarSign className="h-4 w-4 text-emerald-500" />
+                                    {selectedJob.salary_range}
+                                </span>
+                            </div>
+
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                {selectedJob.description}
+                            </p>
+
+                            <div>
+                                <p className="text-sm font-semibold mb-2">Requirements</p>
+                                <ul className="space-y-1.5">
+                                    {selectedJob.requirements.map((req, i) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                            <Sparkles className="h-3.5 w-3.5 text-indigo-500 mt-0.5 shrink-0" />
+                                            {req}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Resume Upload */}
                     <Card className="overflow-hidden">
                         <CardHeader className="pb-3">
@@ -255,33 +405,13 @@ export function CandidateHome() {
                                     </div>
                                 )}
                             </div>
-                        </CardContent>
-                    </Card>
 
-                    {/* Job Description Input */}
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Target className="h-5 w-5 text-violet-600" />
-                                Job Description
-                            </CardTitle>
-                            <CardDescription>Paste the target job description to evaluate resume relevance</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Textarea
-                                placeholder="Paste the job description here... e.g. 'We are looking for a Senior Frontend Developer with 5+ years of experience in React, TypeScript...'"
-                                className="min-h-[140px] resize-none"
-                                value={jobDescription}
-                                onChange={(e) => setJobDescription(e.target.value)}
-                            />
-                            <div className="flex items-center justify-between mt-4">
-                                <p className="text-xs text-muted-foreground">
-                                    {jobDescription.length > 0 ? `${jobDescription.length} characters` : "No job description provided yet"}
-                                </p>
+                            {/* Confirm Submission Button */}
+                            <div className="flex items-center justify-end mt-4">
                                 <Button
                                     size="lg"
                                     className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg font-semibold"
-                                    disabled={!uploadedFile || !jobDescription.trim() || isAnalyzing || !!analysisResult}
+                                    disabled={!uploadedFile || isAnalyzing || !!analysisResult}
                                     onClick={handleAnalyze}
                                 >
                                     {isAnalyzing ? (
@@ -296,8 +426,8 @@ export function CandidateHome() {
                                         </>
                                     ) : (
                                         <>
-                                            <Sparkles className="h-4 w-4 mr-2" />
-                                            Analyze Resume
+                                            <ClipboardCheck className="h-4 w-4 mr-2" />
+                                            Confirm Submission
                                         </>
                                     )}
                                 </Button>
@@ -330,7 +460,7 @@ export function CandidateHome() {
                                             Resume Analysis Complete!
                                         </h3>
                                         <p className="text-emerald-600/80 max-w-md leading-relaxed">
-                                            Your resume has been analyzed successfully. You're now ready to proceed to the AI screening interview.
+                                            Your resume scored <span className="font-bold">{analysisResult.weighted_total}/100</span>. You're now ready to proceed to the AI screening interview.
                                         </p>
                                     </div>
                                     <Button
