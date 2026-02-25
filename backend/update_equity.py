@@ -1,53 +1,65 @@
 import os
 from dotenv import load_dotenv
-from supabase import create_client
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 load_dotenv()
 
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
-supabase = create_client(supabase_url, supabase_key)
+# Initialize Firebase
+_sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "firebase-service-account.json")
+if not os.path.exists(_sa_path):
+    _sa_path = os.path.join(os.path.dirname(__file__), _sa_path)
+
+if not firebase_admin._apps:
+    cred = credentials.Certificate(_sa_path)
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 email = "alex.chen@zerohr.com"
 
 # 1. Get Employee ID
-res = supabase.table("employees").select("id").eq("email", email).execute()
-if not res.data:
+docs = db.collection("employees").where("email", "==", email).limit(1).stream()
+employee = None
+for d in docs:
+    employee = d.to_dict()
+    employee["id"] = d.id
+
+if not employee:
     print("Employee not found")
     exit()
 
-user_id = res.data[0]['id']
+user_id = employee['id']
 print(f"User ID: {user_id}")
 
 # 2. Get Equity
-res = supabase.table("equity_grants").select("*").eq("employee_id", user_id).execute()
-print("Current Equity:", res.data)
+eq_docs = db.collection("equity_grants").where("employee_id", "==", user_id).stream()
+grants = []
+for d in eq_docs:
+    grant = d.to_dict()
+    grant["id"] = d.id
+    grants.append(grant)
+
+print("Current Equity:", grants)
 
 # 3. Update Equity to match Contract (1,200 shares)
-# Assuming 1,200 total, vesting over 3 years.
-# Let's say 400 vested (1 year in).
-if res.data:
-    grant_id = res.data[0]['id']
+if grants:
+    grant = grants[0]
+    grant_id = grant['id']
     print(f"--> Found Grant ID: {grant_id}")
-    print(f"--> Current Total Shares: {res.data[0].get('total_shares')}")
+    print(f"--> Current Total Shares: {grant.get('total_shares')}")
     
     try:
-        update_res = supabase.table("equity_grants").update({
+        db.collection("equity_grants").document(grant_id).update({
             "total_shares": 1200,
             "vested_shares": 400,
             "status": "Partially Vested"
-        }).eq("id", grant_id).execute()
+        })
         
+        updated = db.collection("equity_grants").document(grant_id).get().to_dict()
         print("--> UPDATE SUCCESSFUL")
-        print("--> New Data:", update_res.data)
+        print("--> New Data:", updated)
     except Exception as e:
         print(f"--> UPDATE FAILED: {e}")
-        if hasattr(e, 'message'):
-            print(f"    Message: {e.message}")
-        if hasattr(e, 'hint'):
-            print(f"    Hint: {e.hint}")
-        if hasattr(e, 'details'):
-            print(f"    Details: {e.details}")
-
 else:
     print("--> No equity grant found to update for this user.")

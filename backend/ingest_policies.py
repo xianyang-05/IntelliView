@@ -11,7 +11,7 @@ import re
 import glob
 import chromadb
 from dotenv import load_dotenv
-from supabase import create_client
+
 
 load_dotenv()
 
@@ -98,23 +98,32 @@ def load_markdown_policies() -> list[dict]:
 
 
 def load_db_policies() -> list[dict]:
-    """Load policies from Supabase hr_policies table."""
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    """Load policies from Firestore hr_policies collection."""
+    import firebase_admin
+    from firebase_admin import credentials, firestore
 
-    if not supabase_url or not supabase_key or "REPLACE" in (supabase_key or ""):
-        print("⚠️  Supabase credentials not found or placeholder, skipping DB policies")
-        return []
+    _sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "firebase-service-account.json")
+    if not os.path.exists(_sa_path):
+        _sa_path = os.path.join(os.path.dirname(__file__), _sa_path)
+
+    if not firebase_admin._apps:
+        try:
+            cred = credentials.Certificate(_sa_path)
+            firebase_admin.initialize_app(cred)
+        except Exception:
+            print("⚠️  Firebase credentials not found or invalid, skipping DB policies")
+            return []
 
     try:
-        supabase = create_client(supabase_url, supabase_key)
-        response = supabase.table("hr_policies").select("*").eq("is_active", True).execute()
+        db = firestore.client()
+        docs = db.collection("hr_policies").where("is_active", "==", True).stream()
 
         policies = []
-        for row in response.data:
+        for d in docs:
+            row = d.to_dict()
             policies.append({
-                "policy_name": row["policy_name"],
-                "content": row["content"],
+                "policy_name": row.get("policy_name", "Unknown Policy"),
+                "content": row.get("content", ""),
                 "source": "database",
                 "filename": None,
                 "version": row.get("version", "1.0"),
@@ -123,7 +132,7 @@ def load_db_policies() -> list[dict]:
 
         return policies
     except Exception as e:
-        print(f"⚠️  Supabase error (skipping DB policies): {e}")
+        print(f"⚠️  Firestore error (skipping DB policies): {e}")
         return []
 
 

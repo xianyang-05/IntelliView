@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { supabase } from "@/lib/supabase"
+import { firebaseAuth } from "@/lib/firebase"
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import {
     Form,
@@ -61,10 +62,12 @@ export function HRRegistrationWizard() {
 
     // Auto-generate code on company name change (simple mock)
     const watchCompanyName = form.watch("companyName")
-    if (step === 2 && watchCompanyName && !form.getValues("companyCode")) {
-        const code = watchCompanyName.replace(/\s+/g, '-').toUpperCase().slice(0, 10) + "-2026"
-        form.setValue("companyCode", code)
-    }
+    useEffect(() => {
+        if (step === 2 && watchCompanyName && !form.getValues("companyCode")) {
+            const code = watchCompanyName.replace(/\s+/g, '-').toUpperCase().slice(0, 10) + "-2026"
+            form.setValue("companyCode", code)
+        }
+    }, [step, watchCompanyName, form])
 
     const nextStep = async () => {
         // Validate current step fields
@@ -83,20 +86,17 @@ export function HRRegistrationWizard() {
         setError(null)
 
         try {
-            // 1. Sign up HR Admin
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: values.email,
-                password: values.password,
-                options: {
-                    data: {
-                        full_name: values.fullName,
-                        role: "hr_admin",
-                    },
-                },
+            // 1. Sign up HR Admin with Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(
+                firebaseAuth,
+                values.email,
+                values.password
+            )
+            await updateProfile(userCredential.user, {
+                displayName: values.fullName,
             })
 
-            if (authError) throw new Error(authError.message)
-            if (!authData.user) throw new Error("Registration failed")
+            if (!userCredential.user) throw new Error("Registration failed")
 
             // 2. Register Company in Backend
             const apiRes = await fetch("/api/register/hr", {

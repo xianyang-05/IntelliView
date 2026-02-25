@@ -13,7 +13,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import anthropic
-from supabase import create_client, Client
+import firebase_admin
+from firebase_admin import credentials, firestore
 import tempfile
 import traceback
 
@@ -41,19 +42,175 @@ gemini_api_key = os.getenv("GEMINI_API_KEY")
 if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
     gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-    print(f"✅ Gemini API configured")
+    print(f"Gemini API configured")
 else:
     gemini_model = None
-    print("⚠️  GEMINI_API_KEY not set — resume analyzer will not work")
+    print("Warning: GEMINI_API_KEY not set — resume analyzer will not work")
 
 # Reports directory
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-# Supabase client
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(supabase_url, supabase_key)
+# ── Firebase Admin SDK ──────────────────────────────
+_firebase_sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+if _firebase_sa_path and os.path.exists(_firebase_sa_path):
+    cred = credentials.Certificate(_firebase_sa_path)
+else:
+    # Try absolute path relative to this file
+    _alt_path = os.path.join(os.path.dirname(__file__), _firebase_sa_path or "firebase-service-account.json")
+    if os.path.exists(_alt_path):
+        cred = credentials.Certificate(_alt_path)
+    else:
+        cred = credentials.ApplicationDefault()
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+firestore_db = firestore.client()
+
+
+# ── Firestore compatibility helpers ─────────────────
+# These wrap Firestore calls to look like the old Supabase pattern
+# so the rest of the code needs minimal changes.
+
+class _FirestoreResult:
+    """Mimics Supabase response.data"""
+    def __init__(self, data):
+        self.data = data
+
+class _FirestoreQuery:
+    """Chainable query builder that translates Supabase-style calls to Firestore."""
+    def __init__(self, collection_name: str):
+        self._col = collection_name
+        self._ref = firestore_db.collection(collection_name)
+        self._filters = []
+        self._select_fields = None
+        self._order_field = None
+        self._order_asc = True
+        self._limit_val = None
+        self._ilike_filters = []
+
+    def select(self, fields="*", **kwargs):
+        if fields != "*":
+            self._select_fields = [f.strip() for f in fields.split(",")]
+        return self
+
+    def eq(self, field, value):
+        self._filters.append((field, "==", value))
+        return self
+
+    def neq(self, field, value):
+        self._filters.append((field, "!=", value))
+        return self
+
+    def ilike(self, field, pattern):
+        # Firestore doesn't support ILIKE; we store it and filter in-memory
+        self._ilike_filters.append((field, pattern.strip("%").lower()))
+        return self
+
+    def order(self, field, **kwargs):
+        self._order_field = field
+        desc = kwargs.get("desc", False)
+        self._order_asc = not desc
+        return self
+
+    def limit(self, n):
+        self._limit_val = n
+        return self
+
+    def single(self):
+        self._limit_val = 1
+        self._single = True
+        return self
+
+    def execute(self):
+        q = self._ref
+        for field, op, value in self._filters:
+            q = q.where(field, op, value)
+        if self._order_field:
+            direction = firestore.Query.ASCENDING if self._order_asc else firestore.Query.DESCENDING
+            q = q.order_by(self._order_field, direction=direction)
+        if self._limit_val and not self._ilike_filters:
+            q = q.limit(self._limit_val)
+
+        docs = q.stream()
+        results = []
+        for d in docs:
+            row = d.to_dict()
+            row["id"] = d.id
+            # Apply ilike filters in-memory
+            if self._ilike_filters:
+                match = True
+                for field, pattern in self._ilike_filters:
+                    val = str(row.get(field, "")).lower()
+                    if pattern not in val:
+                        match = False
+                        break
+                if not match:
+                    continue
+            if self._select_fields:
+                row = {k: row.get(k) for k in self._select_fields}
+                if "id" not in self._select_fields:
+                    pass  # don't add id if not selected
+            results.append(row)
+
+        if self._limit_val and self._ilike_filters:
+            results = results[:self._limit_val]
+
+        if getattr(self, "_single", False):
+            return _FirestoreResult(results[0] if results else None)
+        return _FirestoreResult(results)
+
+    def insert(self, data):
+        if isinstance(data, list):
+            ids = []
+            for item in data:
+                _, doc_ref = self._ref.add(item)
+                ids.append(doc_ref.id)
+            return self
+        else:
+            _, doc_ref = self._ref.add(data)
+            self._last_id = doc_ref.id
+            # Return self for chaining .select().single()
+            return _InsertResult(self._col, {**data, "id": doc_ref.id})
+
+    def update(self, data):
+        self._update_data = data
+        return self
+
+    def _execute_update(self):
+        q = self._ref
+        for field, op, value in self._filters:
+            q = q.where(field, op, value)
+        docs = list(q.stream())
+        results = []
+        for d in docs:
+            d.reference.update(self._update_data)
+            updated = d.to_dict()
+            updated.update(self._update_data)
+            updated["id"] = d.id
+            results.append(updated)
+        return _FirestoreResult(results)
+
+
+class _InsertResult:
+    """Handles .insert().select().single() chain"""
+    def __init__(self, col, data):
+        self._data = data
+    def select(self):
+        return self
+    def single(self):
+        return self
+    def execute(self):
+        return _FirestoreResult(self._data)
+
+
+class _SupabaseCompat:
+    """Drop-in replacement for the supabase client."""
+    def table(self, name):
+        return _FirestoreQuery(name)
+
+supabase = _SupabaseCompat()
 
 # ChromaDB client (initialized lazily)
 CHROMA_DIR = os.path.join(os.path.dirname(__file__), "chroma_db")
@@ -69,9 +226,9 @@ def init_chroma():
         chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
         chroma_collection = chroma_client.get_collection(COLLECTION_NAME)
         count = chroma_collection.count()
-        print(f"✅ ChromaDB loaded: {count} policy chunks in collection '{COLLECTION_NAME}'")
+        print(f"ChromaDB loaded: {count} policy chunks in collection '{COLLECTION_NAME}'")
     except Exception as e:
-        print(f"⚠️  ChromaDB not initialized: {e}")
+        print(f" ChromaDB not initialized: {e}")
         print("   Run 'python backend/ingest_policies.py' first to index policies.")
         chroma_collection = None
 
@@ -104,7 +261,7 @@ def get_rag_context(query: str, n_results: int = 5) -> tuple[str, list[str]]:
             n_results=n_results,
         )
     except Exception as e:
-        print(f"⚠️  ChromaDB query error: {e}")
+        print(f" ChromaDB query error: {e}")
         return "", []
 
     if not results["documents"] or not results["documents"][0]:
@@ -143,34 +300,34 @@ def get_rag_context(query: str, n_results: int = 5) -> tuple[str, list[str]]:
 def get_employee_by_email(email: str) -> dict | None:
     """Look up an employee by email from the employees table."""
     try:
-        print(f"🔍 Looking up employee with email: '{email}'")
+        print(f"Looking up employee with email: '{email}'")
         response = supabase.table("employees").select("*").eq("email", email).execute()
         if response.data:
-            print(f"✅ Found employee: {response.data[0].get('first_name')} {response.data[0].get('last_name')}")
+            print(f"Found employee: {response.data[0].get('first_name')} {response.data[0].get('last_name')}")
             return response.data[0]
 
         # Try case-insensitive search
         response2 = supabase.table("employees").select("*").ilike("email", email).execute()
         if response2.data:
-            print(f"✅ Found via ilike: {response2.data[0].get('first_name')} {response2.data[0].get('last_name')}")
+            print(f"Found via ilike: {response2.data[0].get('first_name')} {response2.data[0].get('last_name')}")
             return response2.data[0]
 
         # Demo fallback: try alex.chan@zerohr.com first, then first employee
-        print(f"⚠️  No employee found for '{email}'. Trying demo fallback...")
+        print(f" No employee found for '{email}'. Trying demo fallback...")
         alex = supabase.table("employees").select("*").ilike("email", "%alex%chan%").execute()
         if alex.data:
-            print(f"✅ Demo fallback: using {alex.data[0].get('first_name')} {alex.data[0].get('last_name')}")
+            print(f"Demo fallback: using {alex.data[0].get('first_name')} {alex.data[0].get('last_name')}")
             return alex.data[0]
 
         # Last resort: use the first employee in the table
         first = supabase.table("employees").select("*").limit(1).execute()
         if first.data:
-            print(f"✅ Last-resort fallback: using {first.data[0].get('first_name')} {first.data[0].get('last_name')}")
+            print(f"Last-resort fallback: using {first.data[0].get('first_name')} {first.data[0].get('last_name')}")
             return first.data[0]
 
-        print("❌ No employees found in the database at all!")
+        print("No employees found in the database at all!")
     except Exception as e:
-        print(f"⚠️  Employee lookup error: {e}")
+        print(f" Employee lookup error: {e}")
     return None
 
 
@@ -221,7 +378,7 @@ def get_employee_context(email: str, role: str, question: str) -> str:
                     leave_info += f"  {name}: {remaining} days remaining (total: {total}, used: {used}, pending: {pending})\n"
                 context_parts.append(leave_info)
         except Exception as e:
-            print(f"⚠️  Leave balance query error: {e}")
+            print(f" Leave balance query error: {e}")
 
     # ── Salary / deductions ──
     if any(kw in question_lower for kw in ["salary", "pay", "epf", "socso", "eis", "tax", "pcb", "deduction", "net", "gross", "income", "compensation"]):
@@ -264,7 +421,7 @@ def get_employee_context(email: str, role: str, question: str) -> str:
                     f"Net Salary: MYR {d.get('net_salary', 'N/A')}"
                 )
         except Exception as e:
-            print(f"⚠️  Salary query error: {e}")
+            print(f" Salary query error: {e}")
 
     # ── Equity ──
     if any(kw in question_lower for kw in ["equity", "stock", "shares", "vesting", "option", "rsu", "grant"]):
@@ -288,7 +445,7 @@ def get_employee_context(email: str, role: str, question: str) -> str:
                     )
                 context_parts.append(equity_info)
         except Exception as e:
-            print(f"⚠️  Equity query error: {e}")
+            print(f" Equity query error: {e}")
 
     # ── Expense claims ──
     if any(kw in question_lower for kw in ["expense", "claim", "reimbursement", "receipt"]):
@@ -305,7 +462,7 @@ def get_employee_context(email: str, role: str, question: str) -> str:
                     exp_info += f"  {ex.get('claim_date')}: {ex.get('category')} - MYR {ex.get('amount')} ({ex.get('status')})\n"
                 context_parts.append(exp_info)
         except Exception as e:
-            print(f"⚠️  Expense query error: {e}")
+            print(f" Expense query error: {e}")
 
     # ── Compliance alerts (employee-specific) ──
     if any(kw in question_lower for kw in ["compliance", "alert", "due", "deadline", "expir"]):
@@ -321,7 +478,7 @@ def get_employee_context(email: str, role: str, question: str) -> str:
                     alert_info += f"  [{a.get('severity', 'medium').upper()}] {a.get('title')}: {a.get('description')} (due: {a.get('due_date')})\n"
                 context_parts.append(alert_info)
         except Exception as e:
-            print(f"⚠️  Compliance alert query error: {e}")
+            print(f" Compliance alert query error: {e}")
 
     # ── Manager: Own data + direct reports ──
     if role == "manager":
@@ -358,7 +515,7 @@ def get_hr_admin_context(question_lower: str) -> str:
                     info += f"  {name} ({emp.get('department', '')}): {lt.get('display_name', '')} {lr.get('start_date')} to {lr.get('end_date')} ({lr.get('total_days')} days) - {lr.get('reason', '')}\n"
                 parts.append(info)
         except Exception as e:
-            print(f"⚠️  Pending leave query error: {e}")
+            print(f" Pending leave query error: {e}")
 
     # Pending expenses
     if any(kw in question_lower for kw in ["expense", "claim", "pending", "approve"]):
@@ -375,7 +532,7 @@ def get_hr_admin_context(question_lower: str) -> str:
                     info += f"  {name}: MYR {ex.get('amount')} ({ex.get('category')}) - {ex.get('description', '')} [{ex.get('status')}]\n"
                 parts.append(info)
         except Exception as e:
-            print(f"⚠️  Pending expense query error: {e}")
+            print(f" Pending expense query error: {e}")
 
     # Employee directory / lookup
     if any(kw in question_lower for kw in ["employee", "team", "staff", "workforce", "head count", "directory"]):
@@ -390,7 +547,7 @@ def get_hr_admin_context(question_lower: str) -> str:
                     info += f"  {e.get('first_name')} {e.get('last_name')} - {e.get('job_title')} ({e.get('department')}) [{e.get('employment_type')}] since {e.get('hire_date')}\n"
                 parts.append(info)
         except Exception as e:
-            print(f"⚠️  Employee directory query error: {e}")
+            print(f" Employee directory query error: {e}")
 
     # Specific employee lookup (when HR asks about a specific person)
     try:
@@ -432,7 +589,7 @@ def get_hr_admin_context(question_lower: str) -> str:
                     parts.append(info)
                     break
     except Exception as e:
-        print(f"⚠️  Employee lookup error: {e}")
+        print(f" Employee lookup error: {e}")
 
     # Compliance alerts (org-wide)
     if any(kw in question_lower for kw in ["compliance", "alert", "contract expir", "visa", "deadline"]):
@@ -449,7 +606,7 @@ def get_hr_admin_context(question_lower: str) -> str:
                     info += f"  [{a.get('severity', 'medium').upper()}] {a.get('title')} - {name} (due: {a.get('due_date')})\n"
                 parts.append(info)
         except Exception as e:
-            print(f"⚠️  Compliance alert query error: {e}")
+            print(f" Compliance alert query error: {e}")
 
     return "\n\n".join(parts)
 
@@ -473,7 +630,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
             .execute()
         direct_reports = reports_resp.data or []
     except Exception as e:
-        print(f"⚠️  Manager reports query error: {e}")
+        print(f" Manager reports query error: {e}")
         return ""
 
     if not direct_reports:
@@ -511,7 +668,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
                         info += f"  {lt_name}: {remaining} days remaining (total: {total}, used: {used}, pending: {pending})\n"
                     parts.append(info)
         except Exception as e:
-            print(f"⚠️  Manager leave query error: {e}")
+            print(f" Manager leave query error: {e}")
 
     # Salary info for direct reports
     if any(kw in question_lower for kw in ["salary", "pay", "compensation", "team", "report"]):
@@ -532,7 +689,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
                         f"  Allowances: {json.dumps(c.get('allowances', {}))}"
                     )
         except Exception as e:
-            print(f"⚠️  Manager salary query error: {e}")
+            print(f" Manager salary query error: {e}")
 
     # Expense claims for direct reports
     if any(kw in question_lower for kw in ["expense", "claim", "reimbursement", "team", "report"]):
@@ -551,7 +708,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
                         info += f"  {ex.get('claim_date')}: {ex.get('category')} - MYR {ex.get('amount')} ({ex.get('status')})\n"
                     parts.append(info)
         except Exception as e:
-            print(f"⚠️  Manager expense query error: {e}")
+            print(f" Manager expense query error: {e}")
 
     # Performance reviews for direct reports
     if any(kw in question_lower for kw in ["performance", "review", "rating", "team", "report"]):
@@ -574,7 +731,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
                         f"  Areas for Improvement: {pr.get('areas_for_improvement', 'N/A')}"
                     )
         except Exception as e:
-            print(f"⚠️  Manager performance query error: {e}")
+            print(f" Manager performance query error: {e}")
 
     return "\n\n".join(parts)
 
@@ -697,7 +854,7 @@ async def get_users(role: str = None, all: bool = False):
         response = query.execute()
         return {"users": response.data}
     except Exception as e:
-        print(f"❌ DB Error: {str(e)}")
+        print(f"DB Error: {str(e)}")
         return {"users": [], "error": str(e)}
 
 
@@ -728,7 +885,7 @@ class ConnectionManager:
     async def connect(self, user_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[user_id] = websocket
-        print(f"✅ WS connected: {user_id} (total: {len(self.active_connections)})")
+        print(f"WS connected: {user_id} (total: {len(self.active_connections)})")
 
         if user_id in message_store:
             for msg in message_store[user_id]:
@@ -739,7 +896,7 @@ class ConnectionManager:
 
     def disconnect(self, user_id: str):
         self.active_connections.pop(user_id, None)
-        print(f"❌ WS disconnected: {user_id} (total: {len(self.active_connections)})")
+        print(f"WS disconnected: {user_id} (total: {len(self.active_connections)})")
 
     async def send_to_user(self, user_id: str, message: dict):
         ws = self.active_connections.get(user_id)
@@ -884,13 +1041,37 @@ async def register_employee(request: EmployeeRegistrationRequest):
         return {"success": False, "error": str(e)}
 
 
+class CandidateRegistrationRequest(BaseModel):
+    fullName: str
+    email: str
+    uid: str
+
+
+@app.post("/api/register/candidate")
+async def register_candidate(request: CandidateRegistrationRequest):
+    """Register a new candidate."""
+    try:
+        # Save candidate profile to Firestore
+        doc_ref = admin_db.collection("users").document(request.uid)
+        doc_ref.set({
+            "email": request.email,
+            "full_name": request.fullName,
+            "role": "candidate",
+            "company_id": None,
+            "created_at": datetime.utcnow().isoformat()
+        })
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # ═══════════════════════════════════════════════════
 # ENHANCED CHAT ENDPOINT (RAG + Role-Based + History)
 # ═══════════════════════════════════════════════════
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    print(f"📩 Received: '{request.message}' | Model: {request.model} | User: {request.user_email} | Role: {request.user_role}")
+    print(f"Received: '{request.message}' | Model: {request.model} | User: {request.user_email} | Role: {request.user_role}")
     
     model_key = request.model if request.model in AVAILABLE_MODELS else DEFAULT_MODEL
     model_config = AVAILABLE_MODELS[model_key]
@@ -907,9 +1088,9 @@ async def chat(request: ChatRequest):
                 request.user_role,
                 request.message,
             )
-        print(f"📊 Employee context found: {len(employee_context)} chars | RAG context: {len(rag_context)} chars")
+        print(f"Employee context found: {len(employee_context)} chars | RAG context: {len(rag_context)} chars")
         if employee_context:
-            print(f"📊 Employee context preview: {employee_context[:200]}...")
+            print(f"Employee context preview: {employee_context[:200]}...")
         
         # 3. Build role-aware system prompt
         system_prompt = build_system_prompt(
@@ -958,7 +1139,7 @@ async def chat(request: ChatRequest):
                 actions = parsed.get("actions", [])
         except (json.JSONDecodeError, AttributeError, ValueError):
             # Fallback if parsing fails
-            print(f"⚠️ JSON Parse Failed for: {raw_answer[:100]}...")
+            print(f"JSON Parse Failed for: {raw_answer[:100]}...")
             answer = raw_answer
 
         # 7. Determine confidence based on RAG results
@@ -973,7 +1154,7 @@ async def chat(request: ChatRequest):
             "confidence": confidence,
         }
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"Error: {str(e)}")
         return {"response": f"Error: {str(e)}"}
 
 
@@ -990,7 +1171,7 @@ async def sync_policies():
         init_chroma()
         return {"status": "ok", "policies_indexed": count}
     except Exception as e:
-        print(f"❌ Sync error: {str(e)}")
+        print(f"Sync error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
@@ -1010,11 +1191,11 @@ async def analyze_resume(
     job_description: str = Form(...),
 ):
     """Analyze a resume PDF against a job description using Claude AI."""
-    print(f"📄 Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
+    print(f"Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
 
     try:
         # ── STEP 1: Extract text with PyMuPDF ──
-        print("📝 Step 1: Extracting text from PDF...")
+        print("Step 1: Extracting text from PDF...")
         contents = await resume.read()
 
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -1034,10 +1215,10 @@ async def analyze_resume(
         if not extracted_text.strip():
             return {"detail": "Could not extract any text from the PDF. The file may be scanned or image-based."}
 
-        print(f"   ✅ Extracted {len(extracted_text)} characters from {num_pages} pages")
+        print(f"   Extracted {len(extracted_text)} characters from {num_pages} pages")
 
         # ── STEP 2: Analyze with Claude ──
-        print("🧠 Step 2: Analyzing resume with Claude...")
+        print("Step 2: Analyzing resume with Claude...")
 
         analysis_prompt = f"""You are an expert HR resume analyst. Analyze the following resume against the provided job description.
 
@@ -1129,10 +1310,10 @@ Respond with ONLY the JSON object, no extra text."""
             (c["score"] * c["weight"] / 100) for c in criteria
         )
 
-        print(f"   ✅ Analysis complete. Weighted score: {weighted_total:.1f}/100")
+        print(f"   Analysis complete. Weighted score: {weighted_total:.1f}/100")
 
         # ── STEP 3: Generate fact-checking questions ──
-        print("❓ Step 3: Generating fact-checking questions...")
+        print("Step 3: Generating fact-checking questions...")
 
         questions_prompt = f"""Based on the following resume content, generate 5 to 8 personalized interview questions designed to fact-check and verify the claims made in the resume.
 
@@ -1165,10 +1346,10 @@ Respond with ONLY the JSON array, no extra text."""
         else:
             fact_check_questions = json.loads(raw_questions)
 
-        print(f"   ✅ Generated {len(fact_check_questions)} fact-checking questions")
+        print(f"   Generated {len(fact_check_questions)} fact-checking questions")
 
         # ── COMPILE REPORT ──
-        print("📋 Compiling report...")
+        print("Compiling report...")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_filename = f"resume_analysis_{timestamp}.txt"
         report_path = os.path.join(REPORTS_DIR, report_filename)
@@ -1204,7 +1385,7 @@ Respond with ONLY the JSON array, no extra text."""
             f.write("  END OF REPORT\n")
             f.write("=" * 60 + "\n")
 
-        print(f"   ✅ Report saved to {report_path}")
+        print(f"   Report saved to {report_path}")
 
         return {
             "criteria": criteria,
@@ -1215,11 +1396,11 @@ Respond with ONLY the JSON array, no extra text."""
         }
 
     except json.JSONDecodeError as e:
-        print(f"❌ JSON parse error: {e}")
+        print(f"JSON parse error: {e}")
         traceback.print_exc()
         return {"detail": f"Failed to parse AI response: {str(e)}"}
     except Exception as e:
-        print(f"❌ Resume analysis error: {e}")
+        print(f"Resume analysis error: {e}")
         traceback.print_exc()
         return {"detail": f"Analysis failed: {str(e)}"}
 
@@ -1252,5 +1433,5 @@ if __name__ == "__main__":
             shell=True, capture_output=True
         )
     import uvicorn
-    print("🚀 ZeroHR Backend starting...")
+    print("ZeroHR Backend starting...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

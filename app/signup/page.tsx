@@ -52,6 +52,26 @@ export default function SignupPage() {
                         </div>
                     </Link>
 
+                    {/* Candidate Option */}
+                    <Link href="/register/candidate" className="group">
+                        <div className="rounded-xl border border-border bg-secondary/30 p-5 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
+                            <div className="flex items-start gap-4">
+                                <div className="rounded-lg bg-orange-500/10 p-2.5 group-hover:bg-orange-500/20 transition-colors">
+                                    <User className="h-6 w-6 text-orange-500" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-semibold text-base">I&apos;m a Candidate</h3>
+                                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                        Apply for jobs and take AI-driven interview assessments.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+
                     {/* HR / Admin Option */}
                     <Link href="/register/hr" className="group">
                         <div className="rounded-xl border border-border bg-secondary/30 p-5 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer">

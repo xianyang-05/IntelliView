@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { signOut } from "next-auth/react"
 import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -56,9 +57,21 @@ function NavItem({
   )
 }
 
+function getInitialMode(role?: string): PortalMode {
+  if (role === "hr_admin") return "hr"
+  if (role === "candidate") return "candidate"
+  return "employee"
+}
+
+function getInitialPage(role?: string): string {
+  if (role === "hr_admin") return "dashboard"
+  if (role === "candidate") return "candidate-home"
+  return "home"
+}
+
 export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
-  const [portalMode, setPortalMode] = useState<PortalMode>("employee")
-  const [activePage, setActivePage] = useState("home")
+  const [portalMode, setPortalMode] = useState<PortalMode>(getInitialMode(currentUser?.role))
+  const [activePage, setActivePage] = useState(getInitialPage(currentUser?.role))
   const [navPayload, setNavPayload] = useState<any>(null)
   const [autoOpenVisa, setAutoOpenVisa] = useState(false)
   const [promotionCongrats, setPromotionCongrats] = useState(false)
@@ -471,8 +484,9 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">Alex Chan</p>
-                      <p className="text-xs leading-none text-muted-foreground">alex.chan@zerohr.com</p>
+                      <p className="text-sm font-medium leading-none">{currentUser?.name || "User"}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{currentUser?.email || ""}</p>
+                      <p className="text-xs leading-none text-muted-foreground capitalize mt-1">Role: {currentUser?.role || portalMode}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -485,7 +499,11 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                     <span>Settings</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>Switch Account</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

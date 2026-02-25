@@ -6,7 +6,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { createClient, SupabaseClient, RealtimeChannel } from "@supabase/supabase-js"
+import { db } from "@/lib/firebase"
+import {
+    collection,
+    query,
+    where,
+    orderBy,
+    limit,
+    getDocs,
+    addDoc,
+    updateDoc,
+    doc,
+    onSnapshot,
+    Timestamp,
+    getDoc,
+    writeBatch,
+} from "firebase/firestore"
 
 // ── Types ──
 interface ChatUser {
@@ -24,6 +39,7 @@ interface Conversation {
     participant_1: string
     participant_2: string
     created_at: string
+    updated_at?: string
     other_user?: ChatUser
     last_message?: string
     last_message_time?: string
@@ -57,20 +73,6 @@ const ROLE_AVATAR_COLORS: Record<string, string> = {
     employee: "from-emerald-100 to-teal-100 text-emerald-700",
 }
 
-// ── Supabase client singleton ──
-let _supabaseChat: SupabaseClient | null = null
-function getSupabaseChat(): SupabaseClient {
-    if (!_supabaseChat) {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        if (!url || !key) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
-        _supabaseChat = createClient(url, key, {
-            realtime: { params: { eventsPerSecond: 10 } },
-        })
-    }
-    return _supabaseChat
-}
-
 // ═══════════════════════════════════════
 // CHAT WIDGET COMPONENT
 // ═══════════════════════════════════════
@@ -93,24 +95,17 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
     const popupTimerRef = useRef<NodeJS.Timeout | null>(null)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
-    const channelRef = useRef<RealtimeChannel | null>(null)
-    const globalChannelRef = useRef<RealtimeChannel | null>(null)
+    const unsubMessagesRef = useRef<(() => void) | null>(null)
 
     const currentUserId = isHrMode ? HR_USER_ID : EMPLOYEE_USER_ID
-    const supabase = getSupabaseChat()
 
-    // ── Auto-open from external trigger (e.g. "Request Info" button) ──
+    // ── Auto-open from external trigger ──
     useEffect(() => {
         if (autoOpenUserId) {
-            // Find the contact and open chat with them
             const doAutoOpen = async () => {
-                const { data } = await supabase
-                    .from("users")
-                    .select("*")
-                    .eq("id", autoOpenUserId)
-                    .single()
-                if (data) {
-                    await openChat(data as ChatUser, autoOpenMessage || undefined)
+                const userDoc = await getDoc(doc(db, "users", autoOpenUserId))
+                if (userDoc.exists()) {
+                    await openChat({ id: userDoc.id, ...userDoc.data() } as ChatUser, autoOpenMessage || undefined)
                 }
                 onAutoOpenHandled?.()
             }
@@ -119,19 +114,15 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoOpenUserId])
 
-    // ── Listen for custom "open-chat-with" events from other components ──
+    // ── Listen for custom "open-chat-with" events ──
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent).detail
             if (detail?.userId) {
                 const doOpen = async () => {
-                    const { data } = await supabase
-                        .from("users")
-                        .select("*")
-                        .eq("id", detail.userId)
-                        .single()
-                    if (data) {
-                        await openChat(data as ChatUser, detail.prefillMessage || undefined)
+                    const userDoc = await getDoc(doc(db, "users", detail.userId))
+                    if (userDoc.exists()) {
+                        await openChat({ id: userDoc.id, ...userDoc.data() } as ChatUser, detail.prefillMessage || undefined)
                     }
                 }
                 doOpen()
@@ -140,7 +131,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         window.addEventListener("open-chat-with", handler)
         return () => window.removeEventListener("open-chat-with", handler)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUserId, supabase])
+    }, [currentUserId])
 
     // ── Scroll to bottom ──
     const scrollToBottom = useCallback(() => {
@@ -149,26 +140,39 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         }, 100)
     }, [])
 
-    // ── Fetch contacts — ALL users except self ──
+    // ── Fetch contacts ──
     const fetchContacts = useCallback(async () => {
-        const { data } = await supabase
-            .from("users")
-            .select("*")
-            .neq("id", currentUserId)
-        if (data) setContacts(data)
-    }, [currentUserId, supabase])
+        const snapshot = await getDocs(collection(db, "users"))
+        const users: ChatUser[] = []
+        snapshot.forEach((d) => {
+            if (d.id !== currentUserId) {
+                users.push({ id: d.id, ...d.data() } as ChatUser)
+            }
+        })
+        setContacts(users)
+    }, [currentUserId])
 
     // ── Fetch conversations with unread counts ──
     const fetchConversations = useCallback(async () => {
-        const { data: convos } = await supabase
-            .from("chat_conversations")
-            .select("*")
-            .or(`participant_1.eq.${currentUserId},participant_2.eq.${currentUserId}`)
-            .order("updated_at", { ascending: false })
+        // Firestore doesn't support OR on different fields in a single query,
+        // so we do two queries and merge
+        const q1 = query(
+            collection(db, "chat_conversations"),
+            where("participant_1", "==", currentUserId),
+            orderBy("updated_at", "desc")
+        )
+        const q2 = query(
+            collection(db, "chat_conversations"),
+            where("participant_2", "==", currentUserId),
+            orderBy("updated_at", "desc")
+        )
 
-        if (!convos) return
+        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)])
+        const convosMap = new Map<string, any>()
+        snap1.forEach((d) => convosMap.set(d.id, { id: d.id, ...d.data() }))
+        snap2.forEach((d) => convosMap.set(d.id, { id: d.id, ...d.data() }))
+        const convos = Array.from(convosMap.values())
 
-        // Enrich with last message and unread count
         const enriched: Conversation[] = []
         let totalUnreadCount = 0
 
@@ -177,22 +181,26 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
             const matchedContact = contacts.find((u) => u.id === otherId)
 
             // Get last message
-            const { data: lastMsg } = await supabase
-                .from("chat_messages")
-                .select("content, created_at")
-                .eq("conversation_id", c.id)
-                .order("created_at", { ascending: false })
-                .limit(1)
+            const msgQ = query(
+                collection(db, "chat_messages"),
+                where("conversation_id", "==", c.id),
+                orderBy("created_at", "desc"),
+                limit(1)
+            )
+            const msgSnap = await getDocs(msgQ)
+            let lastMsg: any = null
+            msgSnap.forEach((d) => { lastMsg = d.data() })
 
             // Get unread count
-            const { count } = await supabase
-                .from("chat_messages")
-                .select("*", { count: "exact", head: true })
-                .eq("conversation_id", c.id)
-                .eq("is_read", false)
-                .neq("sender_id", currentUserId)
+            const unreadQ = query(
+                collection(db, "chat_messages"),
+                where("conversation_id", "==", c.id),
+                where("is_read", "==", false),
+                where("sender_id", "!=", currentUserId)
+            )
+            const unreadSnap = await getDocs(unreadQ)
+            const unread = unreadSnap.size
 
-            const unread = count || 0
             totalUnreadCount += unread
 
             enriched.push({
@@ -206,39 +214,62 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                     department: null,
                     avatar_url: null,
                 },
-                last_message: lastMsg?.[0]?.content || "",
-                last_message_time: lastMsg?.[0]?.created_at || c.created_at,
+                last_message: lastMsg?.content || "",
+                last_message_time: lastMsg?.created_at || c.created_at,
                 unread_count: unread,
             })
         }
 
+        // Sort by last_message_time descending
+        enriched.sort((a, b) => {
+            const timeA = a.last_message_time || ""
+            const timeB = b.last_message_time || ""
+            return timeB.localeCompare(timeA)
+        })
+
         setConversations(enriched)
         setTotalUnread(totalUnreadCount)
-    }, [currentUserId, contacts, supabase])
+    }, [currentUserId, contacts])
 
-    // ── Fetch messages for active conversation ──
-    const fetchMessages = useCallback(async (conversationId: string) => {
-        const { data } = await supabase
-            .from("chat_messages")
-            .select("*")
-            .eq("conversation_id", conversationId)
-            .order("created_at", { ascending: true })
+    // ── Fetch & subscribe to messages for active conversation ──
+    const subscribeToMessages = useCallback((conversationId: string) => {
+        // Unsubscribe from previous
+        unsubMessagesRef.current?.()
 
-        if (data) {
-            setMessages(data)
+        const msgQ = query(
+            collection(db, "chat_messages"),
+            where("conversation_id", "==", conversationId),
+            orderBy("created_at", "asc")
+        )
+
+        const unsub = onSnapshot(msgQ, async (snapshot) => {
+            const msgs: Message[] = []
+            const batch = writeBatch(db)
+            let needsBatchCommit = false
+
+            snapshot.forEach((d) => {
+                const data = d.data()
+                msgs.push({ id: d.id, ...data } as Message)
+
+                // Mark unread messages as read
+                if (!data.is_read && data.sender_id !== currentUserId) {
+                    batch.update(d.ref, { is_read: true })
+                    needsBatchCommit = true
+                }
+            })
+
+            setMessages(msgs)
             scrollToBottom()
 
-            // Mark messages as read
-            await supabase
-                .from("chat_messages")
-                .update({ is_read: true })
-                .eq("conversation_id", conversationId)
-                .neq("sender_id", currentUserId)
-                .eq("is_read", false)
-        }
-    }, [currentUserId, supabase, scrollToBottom])
+            if (needsBatchCommit) {
+                await batch.commit()
+            }
+        })
 
-    // ── Global realtime: listen for new messages across ALL conversations ──
+        unsubMessagesRef.current = unsub
+    }, [currentUserId, scrollToBottom])
+
+    // ── Initial data fetch ──
     useEffect(() => {
         fetchContacts()
     }, [fetchContacts])
@@ -247,69 +278,40 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         if (contacts.length > 0) fetchConversations()
     }, [contacts, fetchConversations])
 
+    // ── Cleanup on unmount ──
     useEffect(() => {
-        // Subscribe to ALL new messages to update unread counts
-        const channel = supabase
-            .channel(`global-chat-${currentUserId}`)
-            .on(
-                "postgres_changes",
-                { event: "INSERT", schema: "public", table: "chat_messages" },
-                (payload) => {
-                    const newMsg = payload.new as Message
-
-                    // If the message is for the currently open conversation, add it
-                    if (activeConversation && newMsg.conversation_id === activeConversation.id) {
-                        if (newMsg.sender_id !== currentUserId) {
-                            setMessages((prev) => {
-                                if (prev.some((m) => m.id === newMsg.id)) return prev
-                                return [...prev, newMsg]
-                            })
-                            scrollToBottom()
-                            // Mark as read immediately
-                            supabase
-                                .from("chat_messages")
-                                .update({ is_read: true })
-                                .eq("id", newMsg.id)
-                                .then()
-                        }
-                    }
-
-                    // Refresh conversations list for unread counts
-                    fetchConversations()
-                }
-            )
-            .subscribe()
-
-        globalChannelRef.current = channel
         return () => {
-            supabase.removeChannel(channel)
+            unsubMessagesRef.current?.()
         }
-    }, [currentUserId, activeConversation, supabase, scrollToBottom, fetchConversations])
+    }, [])
 
     // ── Find or create conversation ──
     const openChat = async (contact: ChatUser, prefillMessage?: string) => {
-        // Determine participant ordering for uniqueness
         const p1 = currentUserId < contact.id ? currentUserId : contact.id
         const p2 = currentUserId < contact.id ? contact.id : currentUserId
 
-        // Try to find existing conversation
-        let { data: existing } = await supabase
-            .from("chat_conversations")
-            .select("*")
-            .eq("participant_1", p1)
-            .eq("participant_2", p2)
-            .limit(1)
+        // Try to find existing
+        const existingQ = query(
+            collection(db, "chat_conversations"),
+            where("participant_1", "==", p1),
+            where("participant_2", "==", p2),
+            limit(1)
+        )
+        const existingSnap = await getDocs(existingQ)
 
         let convo: any
-        if (existing && existing.length > 0) {
-            convo = existing[0]
+        if (!existingSnap.empty) {
+            const d = existingSnap.docs[0]
+            convo = { id: d.id, ...d.data() }
         } else {
-            const { data: created } = await supabase
-                .from("chat_conversations")
-                .insert({ participant_1: p1, participant_2: p2 })
-                .select()
-                .single()
-            convo = created
+            const now = new Date().toISOString()
+            const newDoc = await addDoc(collection(db, "chat_conversations"), {
+                participant_1: p1,
+                participant_2: p2,
+                created_at: now,
+                updated_at: now,
+            })
+            convo = { id: newDoc.id, participant_1: p1, participant_2: p2, created_at: now, updated_at: now }
         }
 
         if (convo) {
@@ -318,7 +320,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                 other_user: contact,
             })
             setView("chat")
-            fetchMessages(convo.id)
+            subscribeToMessages(convo.id)
             if (prefillMessage) {
                 setNewMessage(prefillMessage)
             }
@@ -330,31 +332,23 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         if (!newMessage.trim() || !activeConversation || sending) return
         setSending(true)
 
+        const now = new Date().toISOString()
         const msg = {
             conversation_id: activeConversation.id,
             sender_id: currentUserId,
             content: newMessage.trim(),
             is_read: false,
+            created_at: now,
         }
 
-        const { data } = await supabase
-            .from("chat_messages")
-            .insert(msg)
-            .select()
-            .single()
+        await addDoc(collection(db, "chat_messages"), msg)
 
-        if (data) {
-            setMessages((prev) => [...prev, data])
-            setNewMessage("")
-            scrollToBottom()
+        // Update conversation timestamp
+        await updateDoc(doc(db, "chat_conversations", activeConversation.id), {
+            updated_at: now,
+        })
 
-            // Update conversation timestamp
-            await supabase
-                .from("chat_conversations")
-                .update({ updated_at: new Date().toISOString() })
-                .eq("id", activeConversation.id)
-        }
-
+        setNewMessage("")
         setSending(false)
     }
 
@@ -388,7 +382,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         (c.job_title || "").toLowerCase().includes(searchQuery.toLowerCase())
     )
 
-    // ── Handle popup click → open that conversation ──
+    // ── Handle popup click ──
     const handlePopupClick = async () => {
         if (!incomingPopup) return
         if (incomingPopup.contact) {
@@ -577,7 +571,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-white hover:bg-white/20 shrink-0"
-                                    onClick={() => { setView("contacts"); fetchConversations() }}
+                                    onClick={() => { setView("contacts"); fetchConversations(); unsubMessagesRef.current?.() }}
                                 >
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
@@ -596,7 +590,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-white hover:bg-white/20 shrink-0"
-                                    onClick={() => setView("closed")}
+                                    onClick={() => { setView("closed"); unsubMessagesRef.current?.() }}
                                 >
                                     <X className="h-4 w-4" />
                                 </Button>

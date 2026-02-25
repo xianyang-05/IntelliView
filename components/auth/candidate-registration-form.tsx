@@ -10,24 +10,21 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, CheckCircle2, Building2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
 
 const formSchema = z.object({
     fullName: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    companyCode: z.string().min(3, "Company code is required"),
-    employeeId: z.string().optional(),
-    jobTitle: z.string().optional(),
-    department: z.string().optional(),
+    phoneNumber: z.string().optional(),
+    portfolioUrl: z.string().optional(),
+    expectedSalary: z.string().optional(),
 })
 
-export function EmployeeRegistrationForm() {
+export function CandidateRegistrationForm() {
     const router = useRouter()
     const [isLoading, setIsLoading] = useState(false)
-    const [isValidating, setIsValidating] = useState(false)
-    const [companyDetails, setCompanyDetails] = useState<any>(null)
     const [error, setError] = useState<string | null>(null)
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -36,36 +33,11 @@ export function EmployeeRegistrationForm() {
             fullName: "",
             email: "",
             password: "",
-            companyCode: "",
-            employeeId: "",
-            jobTitle: "",
-            department: "",
+            phoneNumber: "",
+            portfolioUrl: "",
+            expectedSalary: "",
         },
     })
-
-    // Validate company code
-    async function validateCompanyCode(code: string) {
-        if (!code) return
-        setIsValidating(true)
-        setError(null)
-        setCompanyDetails(null)
-
-        try {
-            const res = await fetch(`/api/validate-company-code/${code}`)
-            const data = await res.json()
-
-            if (data.valid) {
-                setCompanyDetails(data.company)
-            } else {
-                form.setError("companyCode", { message: "Invalid company code" })
-            }
-        } catch (err) {
-            console.error(err)
-            form.setError("companyCode", { message: "Validation failed" })
-        } finally {
-            setIsValidating(false)
-        }
-    }
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsLoading(true)
@@ -84,24 +56,19 @@ export function EmployeeRegistrationForm() {
 
             if (!userCredential.user) throw new Error("Registration failed")
 
-            // 2. Call Backend API to link employee to company
-            const apiRes = await fetch("/api/register/employee", {
+            // 2. Call Backend API to register candidate
+            const apiRes = await fetch("/api/register/candidate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     fullName: values.fullName,
                     email: values.email,
-                    companyCode: values.companyCode,
-                    employeeId: values.employeeId,
-                    jobTitle: values.jobTitle,
-                    department: values.department,
+                    uid: userCredential.user.uid,
                 }),
             })
 
             const apiData = await apiRes.json()
             if (!apiData.success) throw new Error(apiData.message || "Backend registration failed")
-
-            // 3. Update local user metadata with company_id if needed (optional)
 
             router.push("/login?registered=true")
         } catch (err: any) {
@@ -115,45 +82,12 @@ export function EmployeeRegistrationForm() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Employee Registration</CardTitle>
-                <CardDescription>Enter your details and company code to join.</CardDescription>
+                <CardTitle>Candidate Registration</CardTitle>
+                <CardDescription>Enter your details to create a candidate profile.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="companyCode"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Company Code</FormLabel>
-                                    <div className="flex gap-2">
-                                        <FormControl>
-                                            <Input
-                                                placeholder="e.g. ACME-2024"
-                                                {...field}
-                                                onChange={(e) => {
-                                                    field.onChange(e);
-                                                    if (e.target.value.length >= 3) {
-                                                        // Debounce could be added here
-                                                    }
-                                                }}
-                                                onBlur={() => validateCompanyCode(field.value)}
-                                            />
-                                        </FormControl>
-                                        {companyDetails && <CheckCircle2 className="h-10 w-10 text-emerald-500" />}
-                                    </div>
-                                    {companyDetails && (
-                                        <div className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                                            <Building2 className="h-3 w-3" />
-                                            <span>Joining: <span className="font-medium text-foreground">{companyDetails.name}</span></span>
-                                        </div>
-                                    )}
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
                         <FormField
                             control={form.control}
                             name="fullName"
@@ -175,7 +109,7 @@ export function EmployeeRegistrationForm() {
                                 <FormItem>
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="john@company.com" {...field} />
+                                        <Input placeholder="john@example.com" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -198,12 +132,12 @@ export function EmployeeRegistrationForm() {
 
                         <FormField
                             control={form.control}
-                            name="employeeId"
+                            name="phoneNumber"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Employee ID (Optional)</FormLabel>
+                                    <FormLabel>Phone Number (Optional)</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="EMP-12345" {...field} />
+                                        <Input placeholder="+1 (555) 000-0000" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -213,12 +147,12 @@ export function EmployeeRegistrationForm() {
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
-                                name="jobTitle"
+                                name="portfolioUrl"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Job Title</FormLabel>
+                                        <FormLabel>LinkedIn / Portfolio</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Software Engineer" {...field} />
+                                            <Input placeholder="https://linkedin.com/in/..." {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -226,12 +160,12 @@ export function EmployeeRegistrationForm() {
                             />
                             <FormField
                                 control={form.control}
-                                name="department"
+                                name="expectedSalary"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Department</FormLabel>
+                                        <FormLabel>Expected Salary</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Engineering" {...field} />
+                                            <Input placeholder="$80,000" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -245,9 +179,9 @@ export function EmployeeRegistrationForm() {
                             </div>
                         )}
 
-                        <Button type="submit" className="w-full" disabled={isLoading || isValidating}>
-                            {isLoading || isValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Create Account
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Create Candidate Account
                         </Button>
                     </form>
                 </Form>
