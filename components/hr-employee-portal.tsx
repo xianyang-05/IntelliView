@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { signOut } from "next-auth/react"
+import { signIn, signOut } from "next-auth/react"
 import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -322,11 +322,21 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
             {/* Portal Selector */}
             <Select
               value={portalMode}
-              onValueChange={(value: PortalMode) => {
-                setPortalMode(value)
-                if (value === "hr") handleNavigate("dashboard")
-                else if (value === "employee") handleNavigate("home")
-                else handleNavigate("job-board")
+              onValueChange={async (value: PortalMode) => {
+                const demoCredentials: Record<PortalMode, { email: string; password: string }> = {
+                  hr: { email: "rachel.lim@zerohr.com", password: "demo-hr-2024" },
+                  employee: { email: "alex.chan@zerohr.com", password: "demo-employee-2024" },
+                  candidate: { email: "candidate@zerohr.com", password: "demo-candidate-2024" },
+                }
+                const creds = demoCredentials[value]
+                const result = await signIn("credentials", {
+                  email: creds.email,
+                  password: creds.password,
+                  redirect: false,
+                })
+                if (result?.ok) {
+                  window.location.href = "/"
+                }
               }}
             >
               <SelectTrigger className="w-full bg-secondary border-none h-11">
