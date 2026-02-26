@@ -256,6 +256,14 @@ export function CandidateHome({ selectedJob, currentUser }: CandidateHomeProps) 
                         <p className="text-white/80 text-lg leading-relaxed">
                             Upload your resume and we'll analyze it against the position requirements using AI.
                         </p>
+                        <Button
+                            size="lg"
+                            className="mt-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/30 font-semibold gap-2 rounded-xl shadow-lg"
+                            onClick={() => setShowInterview(true)}
+                        >
+                            <Video className="h-5 w-5" />
+                            Test AI Video Screening
+                        </Button>
                     </div>
                     <div className="hidden lg:flex items-center justify-center">
                         <div className="relative">
