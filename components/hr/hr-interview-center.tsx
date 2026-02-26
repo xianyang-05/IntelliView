@@ -5,7 +5,8 @@ import {
     Users, Search, FileText, Eye, Send, XCircle,
     ChevronRight, Clock, CheckCircle, AlertCircle, Sparkles,
     Briefcase, MapPin, ArrowLeft, X,
-    Filter, Award, TrendingUp, Loader2, Building2, Target, Star
+    Filter, Award, TrendingUp, Loader2, Building2, Target, Star,
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,11 +23,17 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select"
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, updateDoc } from "firebase/firestore"
 
 // ── Types ──
+type DecisionStatus = "pending" | "offer_sent" | "rejected"
+
 interface ResumeReport {
     id: string
     company_name: string
@@ -39,6 +46,7 @@ interface ResumeReport {
     criteria: { criterion: string; weight: number; score: number; explanation: string }[]
     fact_check_questions: string[]
     created_at: string
+    decision_status?: DecisionStatus
 }
 
 // ── Score badge color ──
@@ -54,6 +62,18 @@ function getScoreLabel(score: number) {
     return "Below Average"
 }
 
+function getStatusBadge(status: DecisionStatus) {
+    if (status === "offer_sent") return "bg-emerald-100 text-emerald-700 border-emerald-200"
+    if (status === "rejected") return "bg-red-100 text-red-700 border-red-200"
+    return "bg-amber-100 text-amber-700 border-amber-200"
+}
+
+function getStatusLabel(status: DecisionStatus) {
+    if (status === "offer_sent") return "Offer Sent"
+    if (status === "rejected") return "Rejected"
+    return "Pending"
+}
+
 // ═══════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════
@@ -62,7 +82,14 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedReport, setSelectedReport] = useState<ResumeReport | null>(null)
+
+    // Sidebar: decision status filter
+    const [statusFilter, setStatusFilter] = useState<"all" | DecisionStatus>("all")
+
+    // Table-level: score filter + sort
     const [scoreFilter, setScoreFilter] = useState<string>("all")
+    const [scoreSortOrder, setScoreSortOrder] = useState<"none" | "asc" | "desc">("none")
+
     const [showOfferModal, setShowOfferModal] = useState(false)
     const [offerReport, setOfferReport] = useState<ResumeReport | null>(null)
     const [showPreview, setShowPreview] = useState(false)
@@ -96,6 +123,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                     ...doc.data(),
                 })) as ResumeReport[]
 
+                // Default status to pending if not set
+                data.forEach(r => {
+                    if (!r.decision_status) r.decision_status = "pending"
+                })
+
                 // Sort newest first
                 data.sort(
                     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -110,6 +142,16 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         fetchReports()
     }, [currentUser])
 
+    // ── Update decision status in Firebase ──
+    async function updateDecisionStatus(reportId: string, status: DecisionStatus) {
+        try {
+            const docRef = doc(db, "resume_reports", reportId)
+            await updateDoc(docRef, { decision_status: status })
+        } catch (err) {
+            console.error("Failed to update decision status:", err)
+        }
+    }
+
     // ── Filter logic ──
     const filteredReports = reports.filter((r) => {
         const matchesSearch =
@@ -117,19 +159,37 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
             r.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             r.job_title.toLowerCase().includes(searchQuery.toLowerCase())
 
+        const matchesStatus =
+            statusFilter === "all" || r.decision_status === statusFilter
+
         const matchesScore =
             scoreFilter === "all" ||
             (scoreFilter === "strong" && r.score >= 80) ||
             (scoreFilter === "average" && r.score >= 60 && r.score < 80) ||
             (scoreFilter === "below" && r.score < 60)
 
-        return matchesSearch && matchesScore
+        return matchesSearch && matchesStatus && matchesScore
     })
 
+    // ── Sort by score ──
+    const sortedReports = [...filteredReports]
+    if (scoreSortOrder === "asc") {
+        sortedReports.sort((a, b) => a.score - b.score)
+    } else if (scoreSortOrder === "desc") {
+        sortedReports.sort((a, b) => b.score - a.score)
+    }
+
     // ── Stat counts ──
-    const strongCount = reports.filter((r) => r.score >= 80).length
-    const averageCount = reports.filter((r) => r.score >= 60 && r.score < 80).length
-    const belowCount = reports.filter((r) => r.score < 60).length
+    const pendingCount = reports.filter((r) => r.decision_status === "pending").length
+    const offerSentCount = reports.filter((r) => r.decision_status === "offer_sent").length
+    const rejectedCount = reports.filter((r) => r.decision_status === "rejected").length
+
+    // ── Cycle sort order ──
+    function cycleSortOrder() {
+        if (scoreSortOrder === "none") setScoreSortOrder("desc")
+        else if (scoreSortOrder === "desc") setScoreSortOrder("asc")
+        else setScoreSortOrder("none")
+    }
 
     // ══════ REPORT DETAIL PANEL ══════
     if (selectedReport) {
@@ -155,29 +215,37 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                         <Badge className={`${getScoreBadge(selectedReport.score)} border text-sm px-3 py-1`}>
                             Score: {selectedReport.score}/100 — {getScoreLabel(selectedReport.score)}
                         </Badge>
-                        <Button
-                            className="gap-2"
-                            onClick={() => {
-                                setOfferReport(selectedReport)
-                                setOfferForm(prev => ({ ...prev, position: selectedReport.job_title }))
-                                setShowOfferModal(true)
-                            }}
-                        >
-                            <Send className="h-4 w-4" />
-                            Send Offer
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => {
-                                setReports(prev => prev.filter(r => r.id !== selectedReport.id))
-                                setSelectedReport(null)
-                                toast("Candidate Rejected", { description: selectedReport.candidate_name })
-                            }}
-                        >
-                            <XCircle className="h-4 w-4" />
-                            Reject
-                        </Button>
+                        <Badge className={`${getStatusBadge(selectedReport.decision_status || "pending")} border text-sm px-3 py-1`}>
+                            {getStatusLabel(selectedReport.decision_status || "pending")}
+                        </Badge>
+                        {selectedReport.decision_status === "pending" && (
+                            <>
+                                <Button
+                                    className="gap-2"
+                                    onClick={() => {
+                                        setOfferReport(selectedReport)
+                                        setOfferForm(prev => ({ ...prev, position: selectedReport.job_title }))
+                                        setShowOfferModal(true)
+                                    }}
+                                >
+                                    <Send className="h-4 w-4" />
+                                    Send Offer
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                    onClick={async () => {
+                                        await updateDecisionStatus(selectedReport.id, "rejected")
+                                        setReports(prev => prev.map(r => r.id === selectedReport.id ? { ...r, decision_status: "rejected" as DecisionStatus } : r))
+                                        setSelectedReport(prev => prev ? { ...prev, decision_status: "rejected" as DecisionStatus } : prev)
+                                        toast("Candidate Rejected", { description: selectedReport.candidate_name })
+                                    }}
+                                >
+                                    <XCircle className="h-4 w-4" />
+                                    Reject
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -300,31 +368,31 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     // ══════ MAIN VIEW ══════
     return (
         <div className="flex h-full">
-            {/* ── Score Sidebar ── */}
+            {/* ── Decision Status Sidebar ── */}
             <aside className="w-56 border-r bg-card/50 shrink-0">
                 <div className="p-4 border-b">
-                    <h3 className="font-semibold text-sm text-muted-foreground">Filter by Score</h3>
+                    <h3 className="font-semibold text-sm text-muted-foreground">Filter by Status</h3>
                 </div>
                 <ScrollArea className="h-[calc(100%-52px)]">
                     <div className="p-2 space-y-0.5">
                         {[
-                            { id: "all", label: "All Reports", icon: Users, color: "text-slate-500", count: reports.length },
-                            { id: "strong", label: "Strong (80+)", icon: CheckCircle, color: "text-emerald-500", count: strongCount },
-                            { id: "average", label: "Average (60–79)", icon: Clock, color: "text-amber-500", count: averageCount },
-                            { id: "below", label: "Below Avg (<60)", icon: AlertCircle, color: "text-red-500", count: belowCount },
+                            { id: "all", label: "All Candidates", icon: Users, color: "text-slate-500", count: reports.length },
+                            { id: "pending", label: "Pending Decision", icon: Clock, color: "text-amber-500", count: pendingCount },
+                            { id: "offer_sent", label: "Offer Sent", icon: Send, color: "text-emerald-500", count: offerSentCount },
+                            { id: "rejected", label: "Rejected", icon: XCircle, color: "text-red-500", count: rejectedCount },
                         ].map(item => {
                             const Icon = item.icon
                             return (
                                 <button
                                     key={item.id}
-                                    onClick={() => setScoreFilter(item.id)}
-                                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${scoreFilter === item.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary/80 text-muted-foreground"}`}
+                                    onClick={() => setStatusFilter(item.id as any)}
+                                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${statusFilter === item.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary/80 text-muted-foreground"}`}
                                 >
                                     <div className="flex items-center gap-2.5">
-                                        <Icon className={`h-4 w-4 ${scoreFilter === item.id ? "text-primary" : item.color}`} />
+                                        <Icon className={`h-4 w-4 ${statusFilter === item.id ? "text-primary" : item.color}`} />
                                         <span>{item.label}</span>
                                     </div>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${scoreFilter === item.id ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusFilter === item.id ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
                                         {item.count}
                                     </span>
                                 </button>
@@ -367,10 +435,10 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                 {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                     {[
-                        { label: "Total Reports", value: reports.length, icon: FileText, color: "text-blue-500", bg: "bg-blue-50" },
-                        { label: "Strong Candidates", value: strongCount, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-50" },
-                        { label: "Average Candidates", value: averageCount, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-                        { label: "Below Average", value: belowCount, icon: AlertCircle, color: "text-red-500", bg: "bg-red-50" },
+                        { label: "Total Candidates", value: reports.length, icon: FileText, color: "text-blue-500", bg: "bg-blue-50" },
+                        { label: "Pending Decision", value: pendingCount, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+                        { label: "Offers Sent", value: offerSentCount, icon: Send, color: "text-emerald-500", bg: "bg-emerald-50" },
+                        { label: "Rejected", value: rejectedCount, icon: XCircle, color: "text-red-500", bg: "bg-red-50" },
                     ].map(stat => (
                         <Card key={stat.label}>
                             <CardContent className="p-4 flex items-center gap-4">
@@ -405,19 +473,66 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Candidate</th>
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Position</th>
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date</th>
-                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Score</th>
+                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                                                <div className="flex items-center gap-2">
+                                                    {/* Score column header with inline filter + sort */}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <button className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+                                                                Score
+                                                                <ChevronDown className="h-3.5 w-3.5" />
+                                                                {scoreFilter !== "all" && (
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                                                )}
+                                                            </button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="start" className="w-44">
+                                                            <DropdownMenuLabel className="text-xs">Filter by Score</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            {[
+                                                                { id: "all", label: "All Scores" },
+                                                                { id: "strong", label: "Strong (80+)" },
+                                                                { id: "average", label: "Average (60–79)" },
+                                                                { id: "below", label: "Below Avg (<60)" },
+                                                            ].map(item => (
+                                                                <DropdownMenuItem
+                                                                    key={item.id}
+                                                                    onClick={() => setScoreFilter(item.id)}
+                                                                    className={scoreFilter === item.id ? "bg-primary/10 font-medium" : ""}
+                                                                >
+                                                                    {scoreFilter === item.id && <CheckCircle className="h-3.5 w-3.5 mr-2 text-primary" />}
+                                                                    {scoreFilter !== item.id && <span className="w-[22px]" />}
+                                                                    {item.label}
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+
+                                                    {/* Sort toggle */}
+                                                    <button
+                                                        onClick={cycleSortOrder}
+                                                        className="p-1 rounded hover:bg-secondary transition-colors"
+                                                        title={scoreSortOrder === "none" ? "Sort by score" : scoreSortOrder === "desc" ? "Sorted: High → Low" : "Sorted: Low → High"}
+                                                    >
+                                                        {scoreSortOrder === "none" && <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                        {scoreSortOrder === "desc" && <ArrowDown className="h-3.5 w-3.5 text-primary" />}
+                                                        {scoreSortOrder === "asc" && <ArrowUp className="h-3.5 w-3.5 text-primary" />}
+                                                    </button>
+                                                </div>
+                                            </th>
+                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                                             <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredReports.length === 0 ? (
+                                        {sortedReports.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                                                <td colSpan={6} className="text-center py-12 text-muted-foreground">
                                                     {reports.length === 0 ? "No resume reports yet" : "No reports match your filters"}
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredReports.map(report => (
+                                            sortedReports.map(report => (
                                                 <tr
                                                     key={report.id}
                                                     className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
@@ -451,6 +566,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                         </Badge>
                                                     </td>
                                                     <td className="py-3 px-4">
+                                                        <Badge className={`${getStatusBadge(report.decision_status || "pending")} border text-xs`}>
+                                                            {getStatusLabel(report.decision_status || "pending")}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
                                                         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                                                             <Button
                                                                 variant="outline"
@@ -459,33 +579,38 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                                 onClick={() => setSelectedReport(report)}
                                                             >
                                                                 <Eye className="h-3.5 w-3.5" />
-                                                                View Resume Report
+                                                                View
                                                             </Button>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="gap-1.5 text-xs h-8"
-                                                                onClick={() => {
-                                                                    setOfferReport(report)
-                                                                    setOfferForm(prev => ({ ...prev, position: report.job_title }))
-                                                                    setShowOfferModal(true)
-                                                                }}
-                                                            >
-                                                                <Send className="h-3.5 w-3.5" />
-                                                                Send Offer
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="gap-1.5 text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                                onClick={() => {
-                                                                    setReports(prev => prev.filter(r => r.id !== report.id))
-                                                                    toast("Candidate Rejected", { description: report.candidate_name })
-                                                                }}
-                                                            >
-                                                                <XCircle className="h-3.5 w-3.5" />
-                                                                Reject
-                                                            </Button>
+                                                            {report.decision_status === "pending" && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="gap-1.5 text-xs h-8"
+                                                                        onClick={() => {
+                                                                            setOfferReport(report)
+                                                                            setOfferForm(prev => ({ ...prev, position: report.job_title }))
+                                                                            setShowOfferModal(true)
+                                                                        }}
+                                                                    >
+                                                                        <Send className="h-3.5 w-3.5" />
+                                                                        Send Offer
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="gap-1.5 text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                                                        onClick={async () => {
+                                                                            await updateDecisionStatus(report.id, "rejected")
+                                                                            setReports(prev => prev.map(r => r.id === report.id ? { ...r, decision_status: "rejected" as DecisionStatus } : r))
+                                                                            toast("Candidate Rejected", { description: report.candidate_name })
+                                                                        }}
+                                                                    >
+                                                                        <XCircle className="h-3.5 w-3.5" />
+                                                                        Reject
+                                                                    </Button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -507,6 +632,12 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     // ── Send Offer handler ──
     function handleSendOffer() {
         if (!offerReport) return
+
+        // Update status in Firebase
+        updateDecisionStatus(offerReport.id, "offer_sent")
+
+        // Update local state
+        setReports(prev => prev.map(r => r.id === offerReport.id ? { ...r, decision_status: "offer_sent" as DecisionStatus } : r))
 
         // Store in localStorage for employee-side popup
         const events = JSON.parse(localStorage.getItem('global_events') || '{}')
