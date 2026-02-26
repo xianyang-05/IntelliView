@@ -363,7 +363,7 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
                                 <CardTitle>AI Performance Results</CardTitle>
-                                <CardDescription>Click an employee to expand AI insights. Edge cases are reviewed by Claude.</CardDescription>
+                                <CardDescription>Click an employee to expand AI insights. Edge cases are reviewed by AI.</CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
@@ -496,7 +496,7 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                                                     <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 space-y-3">
                                                         <div className="flex items-center justify-between">
                                                             <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
-                                                                <Sparkles className="h-3.5 w-3.5" /> Claude AI Assessment
+                                                                <Sparkles className="h-3.5 w-3.5" /> AI Assessment
                                                             </p>
                                                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-indigo-200 text-indigo-600">
                                                                 Confidence: {emp.llm_review.confidence}
@@ -570,7 +570,7 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                             <p className="text-muted-foreground text-sm max-w-md">
                                 Click <strong>"Run AI Review"</strong> to analyze employee performance data.
                                 The AI will score all employees, flag edge cases, and provide detailed
-                                assessments using Claude.
+                                assessments using AI.
                             </p>
                         </div>
                     </CardContent>
@@ -584,7 +584,7 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                         <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
                         <div>
                             <h3 className="text-lg font-semibold mb-1">Analyzing Performance Data...</h3>
-                            <p className="text-muted-foreground text-sm">Scoring employees, detecting edge cases, and running Claude AI review</p>
+                            <p className="text-muted-foreground text-sm">Scoring employees, detecting edge cases, and running AI review</p>
                         </div>
                     </CardContent>
                 </Card>
