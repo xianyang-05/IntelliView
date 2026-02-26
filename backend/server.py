@@ -1272,7 +1272,7 @@ JOB DESCRIPTION:
 
 JSON only:"""
 
-        questions_prompt = f"""Generate 5-8 interview questions to fact-check this resume. Focus on: verifiable claims, technical skills, achievements, project roles, employment gaps.
+        questions_prompt = f"""Generate exactly 5 interview questions to fact-check this resume. Focus on: verifiable claims, technical skills, achievements, project roles, employment gaps.
 
 Respond ONLY with a JSON array: ["Q1","Q2",...]
 
