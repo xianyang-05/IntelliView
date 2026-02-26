@@ -31,7 +31,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { AiInterview } from "./ai-interview"
 import { db } from "@/lib/firebase"
-import { collection, addDoc } from "firebase/firestore"
+import { collection, addDoc, query, where, getDocs, doc, setDoc } from "firebase/firestore"
 
 // ─── Types ───────────────────────────────────────────
 interface AnalysisResult {
@@ -178,22 +178,46 @@ export function CandidateHome({ selectedJob, currentUser }: CandidateHomeProps) 
                 throw new Error(data.detail)
             }
 
-            // Save report to Firestore
+            // Save report to Firestore (avoid duplicates by checking email + job title)
             try {
-                const reportDoc = await addDoc(collection(db, "resume_reports"), {
+                const candidateEmail = currentUser?.email || ""
+                const reportData = {
                     company_name: selectedJob.company,
                     company_code: selectedJob.company_code || "",
                     job_title: selectedJob.title,
                     candidate_name: currentUser?.name || currentUser?.full_name || "Unknown Candidate",
-                    candidate_email: currentUser?.email || null,
+                    candidate_email: candidateEmail,
                     score: data.weighted_total,
                     summary: data.summary,
                     criteria: data.criteria,
                     fact_check_questions: data.fact_check_questions,
                     created_at: new Date().toISOString(),
-                })
-                data.report_id = reportDoc.id
-                console.log("Report saved to Firestore:", reportDoc.id)
+                }
+
+                let existingDocId: string | null = null
+                if (candidateEmail) {
+                    const q = query(
+                        collection(db, "resume_reports"),
+                        where("candidate_email", "==", candidateEmail),
+                        where("job_title", "==", selectedJob.title)
+                    )
+                    const snapshot = await getDocs(q)
+                    if (!snapshot.empty) {
+                        existingDocId = snapshot.docs[0].id
+                    }
+                }
+
+                if (existingDocId) {
+                    // Update existing report
+                    await setDoc(doc(db, "resume_reports", existingDocId), reportData)
+                    data.report_id = existingDocId
+                    console.log("Report updated in Firestore:", existingDocId)
+                } else {
+                    // Create new report
+                    const reportDoc = await addDoc(collection(db, "resume_reports"), reportData)
+                    data.report_id = reportDoc.id
+                    console.log("Report saved to Firestore:", reportDoc.id)
+                }
             } catch (firebaseErr) {
                 console.error("Failed to save report to Firestore:", firebaseErr)
             }

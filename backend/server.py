@@ -1289,12 +1289,152 @@ JSON array only:"""
         raw_analysis = raw_analysis.strip()
         raw_questions = raw_questions.strip()
 
+        def _clean_llm_json(text: str) -> str:
+            """Clean common LLM JSON issues: markdown fences, trailing commas, etc."""
+            # Strip markdown code fences
+            text = re.sub(r'^```(?:json)?\s*\n?', '', text, flags=re.MULTILINE)
+            text = re.sub(r'\n?```\s*$', '', text, flags=re.MULTILINE)
+            text = text.strip()
+            # Remove trailing commas before } or ]
+            text = re.sub(r',\s*([}\]])', r'\1', text)
+            return text
+
+        def _repair_json_string(text: str) -> str:
+            """Aggressively repair broken JSON by escaping problematic characters inside string values."""
+            # Replace literal control characters that break JSON
+            text = text.replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
+            text = text.replace('\t', '\\t')
+
+            # Fix unescaped quotes inside JSON string values using a state machine
+            result = []
+            i = 0
+            in_string = False
+            prev_was_backslash = False
+
+            while i < len(text):
+                ch = text[i]
+
+                if prev_was_backslash:
+                    result.append(ch)
+                    prev_was_backslash = False
+                    i += 1
+                    continue
+
+                if ch == '\\':
+                    result.append(ch)
+                    prev_was_backslash = True
+                    i += 1
+                    continue
+
+                if ch == '"':
+                    if not in_string:
+                        in_string = True
+                        result.append(ch)
+                    else:
+                        # Check if this quote is a legitimate string terminator
+                        # Look ahead: if next non-whitespace is : , } ] or end — it's legit
+                        rest = text[i+1:].lstrip()
+                        if not rest or rest[0] in ':,}]':
+                            in_string = False
+                            result.append(ch)
+                        else:
+                            # It's an unescaped quote inside a string — escape it
+                            result.append('\\"')
+                    i += 1
+                    continue
+
+                result.append(ch)
+                i += 1
+
+            return ''.join(result)
+
+        def _extract_and_parse_object(text: str) -> dict:
+            """Extract JSON object from text, trying multiple strategies."""
+            cleaned = _clean_llm_json(text)
+
+            # Strategy 1: Direct parse
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+
+            # Strategy 2: Nested brace matching
+            depth = 0
+            start = None
+            for i, ch in enumerate(cleaned):
+                if ch == '{':
+                    if depth == 0:
+                        start = i
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0 and start is not None:
+                        candidate = cleaned[start:i+1]
+                        try:
+                            return json.loads(candidate)
+                        except json.JSONDecodeError:
+                            # Strategy 3: Repair the extracted candidate
+                            try:
+                                repaired = _repair_json_string(candidate)
+                                return json.loads(repaired)
+                            except json.JSONDecodeError:
+                                pass
+                        start = None
+
+            # Strategy 4: Greedy regex + repair
+            m = re.search(r'(\{.*\})', cleaned, re.DOTALL)
+            if m:
+                candidate = m.group(1)
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    repaired = _repair_json_string(candidate)
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        pass
+
+            # Strategy 5: Repair entire cleaned text
+            repaired = _repair_json_string(cleaned)
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+
+            raise json.JSONDecodeError("No valid JSON object found after all repair strategies", text, 0)
+
+        def _extract_and_parse_array(raw: str) -> list:
+            """Robustly extract a JSON array from LLM output."""
+            cleaned = _clean_llm_json(raw)
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+            m = re.search(r'(\[.*\])', cleaned, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group(1))
+                except json.JSONDecodeError:
+                    repaired = _repair_json_string(m.group(1))
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        pass
+            raise json.JSONDecodeError("No valid JSON array found", raw, 0)
+
+        # Log raw AI output for debugging
+        try:
+            debug_path = os.path.join(REPORTS_DIR, "last_raw_analysis.txt")
+            with open(debug_path, "w", encoding="utf-8") as df:
+                df.write("=== RAW ANALYSIS ===\n")
+                df.write(raw_analysis)
+                df.write("\n\n=== RAW QUESTIONS ===\n")
+                df.write(raw_questions)
+        except Exception:
+            pass
+
         # Parse analysis JSON
-        json_match = re.search(r'(\{.*\})', raw_analysis, re.DOTALL)
-        if json_match:
-            analysis_data = json.loads(json_match.group(1))
-        else:
-            analysis_data = json.loads(raw_analysis)
+        analysis_data = _extract_and_parse_object(raw_analysis)
 
         criteria = analysis_data.get("criteria", [])
         summary = analysis_data.get("summary", "")
@@ -1306,11 +1446,7 @@ JSON array only:"""
         print(f"   Analysis complete. Weighted score: {weighted_total:.1f}/100")
 
         # Parse questions JSON
-        json_arr_match = re.search(r'(\[.*\])', raw_questions, re.DOTALL)
-        if json_arr_match:
-            fact_check_questions = json.loads(json_arr_match.group(1))
-        else:
-            fact_check_questions = json.loads(raw_questions)
+        fact_check_questions = _extract_and_parse_array(raw_questions)
 
         print(f"   Generated {len(fact_check_questions)} fact-checking questions")
 
@@ -1353,25 +1489,7 @@ JSON array only:"""
 
         print(f"   Report saved to {report_path}")
 
-        # ── STEP 4: Save structured report to Firestore ──
-        report_id = None
-        try:
-            report_data = {
-                "company_name": company_name or "Unknown",
-                "company_code": company_code or "",
-                "job_title": job_title or "Unknown",
-                "candidate_name": candidate_name or "Unknown",
-                "score": round(weighted_total, 1),
-                "summary": summary,
-                "criteria": criteria,
-                "fact_check_questions": fact_check_questions,
-                "created_at": datetime.utcnow().isoformat(),
-            }
-            _, doc_ref = firestore_db.collection("resume_reports").add(report_data)
-            report_id = doc_ref.id
-            print(f"   Firestore report saved: {report_id}")
-        except Exception as fb_err:
-            print(f"   Firestore save error: {fb_err}")
+        # Note: Firestore save is handled by the frontend to avoid duplicates
 
         return {
             "criteria": criteria,
@@ -1379,7 +1497,6 @@ JSON array only:"""
             "summary": summary,
             "fact_check_questions": fact_check_questions,
             "report_path": report_filename,
-            "report_id": report_id,
         }
 
     except json.JSONDecodeError as e:

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { signIn, signOut } from "next-auth/react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase } from "lucide-react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { EmployeeHome } from "./employee/employee-home"
@@ -19,6 +19,7 @@ import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
 import { CandidateHome } from "./candidate/candidate-home"
 import { JobBoard } from "./candidate/job-board"
+import { CandidateOffers } from "./candidate/candidate-offers"
 import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
 import {
@@ -118,6 +119,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const candidateNav = [
     { id: "job-board", label: "Job Board", icon: Briefcase },
+    { id: "my-offers", label: "My Offers", icon: Mail },
   ]
 
   const currentNav = portalMode === "hr" ? hrNav : portalMode === "candidate" ? candidateNav : employeeNav
@@ -137,7 +139,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         } else if (portalMode === "employee") {
           setNotifications(allNotifs.filter((n: any) => (n.type === 'document' || n.type === 'request_info' || n.type === 'compliance_alert' || n.type === 'promotion') && !n.read))
         } else {
-          setNotifications([])
+          setNotifications(allNotifs.filter((n: any) => n.type === 'offer_letter' && !n.read))
         }
       }
     }
@@ -172,6 +174,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
     } else if (selectedNotification.type === 'promotion') {
       setPromotionCongrats(true)
       setActivePage("chat")
+    } else if (selectedNotification.type === 'offer_letter') {
+      setActivePage("my-offers")
     }
     setIsNotificationModalOpen(false)
   }
@@ -302,6 +306,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           return <JobBoard onNavigate={handleNavigate} />
         case "candidate-home":
           return <CandidateHome selectedJob={navPayload} currentUser={currentUser} />
+        case "my-offers":
+          return <CandidateOffers currentUser={currentUser} />
         default:
           return <JobBoard onNavigate={handleNavigate} />
       }

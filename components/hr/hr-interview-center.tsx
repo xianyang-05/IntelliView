@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where, doc, updateDoc } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, updateDoc, addDoc } from "firebase/firestore"
 
 // ── Types ──
 type DecisionStatus = "pending" | "offer_sent" | "rejected"
@@ -630,40 +630,43 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     )
 
     // ── Send Offer handler ──
-    function handleSendOffer() {
+    async function handleSendOffer() {
         if (!offerReport) return
 
-        // Update status in Firebase
+        // Update decision status in Firebase
         updateDecisionStatus(offerReport.id, "offer_sent")
 
         // Update local state
         setReports(prev => prev.map(r => r.id === offerReport.id ? { ...r, decision_status: "offer_sent" as DecisionStatus } : r))
 
-        // Store in localStorage for employee-side popup
-        const events = JSON.parse(localStorage.getItem('global_events') || '{}')
-        localStorage.setItem('global_events', JSON.stringify({
-            ...events,
-            offer_letter_received: true,
-            offer_letter_viewed: false,
-            offer_details: {
-                candidateName: offerReport.candidate_name,
+        // Save offer letter to Firestore for candidate portal
+        try {
+            await addDoc(collection(db, "offer_letters"), {
+                candidate_name: offerReport.candidate_name,
+                candidate_email: offerReport.candidate_email || "",
                 position: offerForm.position,
+                company_name: offerReport.company_name,
                 salary: offerForm.salary,
-                startDate: offerForm.startDate,
+                start_date: offerForm.startDate,
                 benefits: offerForm.benefits,
-                contractType: offerForm.contractType,
+                contract_type: offerForm.contractType,
                 probation: offerForm.probation,
-                sentAt: new Date().toISOString(),
-            }
-        }))
+                status: "pending",
+                sent_at: new Date().toISOString(),
+                resume_report_id: offerReport.id,
+            })
+        } catch (err) {
+            console.error("Failed to save offer letter to Firestore:", err)
+        }
 
+        // Push notification for candidate portal
         const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
         notifs.push({
             id: Math.random().toString(36).substr(2, 9),
-            type: 'document',
+            type: 'offer_letter',
             employee: offerReport.candidate_name,
             title: `Offer Letter: ${offerForm.position}`,
-            message: `You have received an offer letter for the ${offerForm.position} position. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
+            message: `You have received an offer letter for the ${offerForm.position} position at ${offerReport.company_name}. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
             timestamp: new Date().toISOString(),
             read: false
         })
