@@ -659,7 +659,11 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         </div>
 
         {/* Real-Time Chat Widget */}
-        {portalMode !== "candidate" && <ChatWidget isHrMode={portalMode === "hr"} />}
+        <ChatWidget 
+          isHrMode={portalMode === "hr"} 
+          isCandidateMode={portalMode === "candidate"}
+          currentUserIdOverride={portalMode === "candidate" ? (currentUser?.id || currentUser?.uid) : undefined} 
+        />
       </main>
     </div>
   )

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import {
     Send, Clock, CheckCircle, FileText, Building2,
     DollarSign, Calendar, Briefcase, Award, Sparkles,
-    Loader2, Mail, PenLine, Undo2, Download
+    Loader2, Mail, PenLine, Undo2, Download, MessageCircle
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import {
     DialogDescription, DialogFooter
 } from "@/components/ui/dialog"
 import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where, doc, updateDoc } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, updateDoc, getDoc, limit } from "firebase/firestore"
 import { toast } from "sonner"
 
 interface OfferLetter {
@@ -28,8 +28,10 @@ interface OfferLetter {
     benefits: string
     contract_type: string
     probation: string
+    annual_leave?: string
     status: "pending" | "accepted" | "declined"
     sent_at: string
+    resume_report_id: string
     signature?: string
     signed_at?: string
 }
@@ -219,6 +221,7 @@ export function CandidateOffers({ currentUser }: { currentUser?: any }) {
         const formattedDate = new Date(selectedOffer.sent_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         const startDate = new Date(selectedOffer.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         const probation = selectedOffer.probation === "0" ? "None" : selectedOffer.probation + " months";
+        const annualLeave = selectedOffer.annual_leave ? selectedOffer.annual_leave + " days" : "Standard";
         const contractType = selectedOffer.contract_type.replace("_", " ");
         const salary = Number(selectedOffer.salary).toLocaleString();
         
@@ -287,6 +290,8 @@ export function CandidateOffers({ currentUser }: { currentUser?: any }) {
                         <div class="val" style="text-transform: capitalize;">${contractType}</div>
                         <div class="label">Probation:</div>
                         <div class="val">${probation}</div>
+                        <div class="label">Annual Leave:</div>
+                        <div class="val">${annualLeave}</div>
                     </div>
                 </div>
                 
@@ -507,6 +512,12 @@ export function CandidateOffers({ currentUser }: { currentUser?: any }) {
                                             <span className="font-medium capitalize">{selectedOffer.contract_type.replace("_", " ")}</span>
                                             <span className="text-slate-500">Probation:</span>
                                             <span className="font-medium">{selectedOffer.probation === "0" ? "None" : selectedOffer.probation + " months"}</span>
+                                            {selectedOffer.annual_leave && (
+                                                <>
+                                                    <span className="text-slate-500">Annual Leave:</span>
+                                                    <span className="font-medium">{selectedOffer.annual_leave} days</span>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     <div>
@@ -545,14 +556,45 @@ export function CandidateOffers({ currentUser }: { currentUser?: any }) {
                             </div>
 
                             {selectedOffer.status === "pending" && (
-                                <DialogFooter className="pt-2">
+                                <DialogFooter className="pt-2 sm:justify-between">
                                     <Button
                                         variant="outline"
-                                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                        onClick={() => handleDecline(selectedOffer.id)}
+                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                        onClick={async () => {
+                                            setShowDetailModal(false)
+                                            let hrUserId = "IvQlCvZUVlRhWuRJ5kjmQEBpMFT2"; // fallback to Rachel Lim
+                                            try {
+                                                const reportDoc = await getDoc(doc(db, "resume_reports", selectedOffer.resume_report_id));
+                                                const companyCode = reportDoc.data()?.company_code;
+                                                if (companyCode) {
+                                                    const hrQuery = query(collection(db, "users"), where("role", "==", "hr_admin"), where("company_id", "==", companyCode), limit(1));
+                                                    const hrSnap = await getDocs(hrQuery);
+                                                    if (!hrSnap.empty) {
+                                                        hrUserId = hrSnap.docs[0].id;
+                                                    }
+                                                }
+                                            } catch (err) {
+                                                console.error("Failed to find HR admin:", err)
+                                            }
+                                            window.dispatchEvent(new CustomEvent('open-chat-with', { 
+                                                detail: { 
+                                                    userId: hrUserId, 
+                                                    prefillMessage: `Hi, I would like to discuss the offer for ${selectedOffer.position}.` 
+                                                }
+                                            }))
+                                        }}
                                     >
-                                        Decline Offer
+                                        <MessageCircle className="h-4 w-4 mr-2" />
+                                        Discuss Offer
                                     </Button>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                            onClick={() => handleDecline(selectedOffer.id)}
+                                        >
+                                            Decline Offer
+                                        </Button>
                                     <Button
                                         className="bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-lg"
                                         onClick={() => {
@@ -563,6 +605,7 @@ export function CandidateOffers({ currentUser }: { currentUser?: any }) {
                                         <PenLine className="h-4 w-4" />
                                         Sign & Accept Offer
                                     </Button>
+                                    </div>
                                 </DialogFooter>
                             )}
 

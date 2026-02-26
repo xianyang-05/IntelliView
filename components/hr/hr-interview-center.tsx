@@ -6,7 +6,7 @@ import {
     ChevronRight, Clock, CheckCircle, AlertCircle, Sparkles,
     Briefcase, MapPin, ArrowLeft, X,
     Filter, Award, TrendingUp, Loader2, Building2, Target, Star,
-    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, PenLine
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where, doc, updateDoc, addDoc } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, limit } from "firebase/firestore"
 
 // ── Types ──
 type DecisionStatus = "pending" | "offer_sent" | "rejected"
@@ -97,10 +97,13 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         position: "",
         salary: "8000",
         startDate: "2026-03-15",
-        benefits: "Medical, Dental, Vision, EPF, SOCSO, Annual Leave (14 days)",
+        benefits: "Medical, Dental, Vision, EPF, SOCSO",
         contractType: "permanent",
         probation: "3",
+        annualLeave: "14",
     })
+    const [isEditingOffer, setIsEditingOffer] = useState(false)
+    const [offerLetterId, setOfferLetterId] = useState<string | null>(null)
 
     // ── Fetch resume reports from Firestore ──
     useEffect(() => {
@@ -224,7 +227,17 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                     className="gap-2"
                                     onClick={() => {
                                         setOfferReport(selectedReport)
-                                        setOfferForm(prev => ({ ...prev, position: selectedReport.job_title }))
+                                        setOfferForm({
+                                            position: selectedReport.job_title,
+                                            salary: "8000",
+                                            startDate: "2026-03-15",
+                                            benefits: "Medical, Dental, Vision, EPF, SOCSO",
+                                            contractType: "permanent",
+                                            probation: "3",
+                                            annualLeave: "14"
+                                        })
+                                        setIsEditingOffer(false)
+                                        setOfferLetterId(null)
                                         setShowOfferModal(true)
                                     }}
                                 >
@@ -245,6 +258,15 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                     Reject
                                 </Button>
                             </>
+                        )}
+                        {selectedReport.decision_status === "offer_sent" && (
+                            <Button
+                                className="gap-2 bg-blue-600 hover:bg-blue-700"
+                                onClick={() => handleEditOffer(selectedReport)}
+                            >
+                                <PenLine className="h-4 w-4" />
+                                Edit Offer
+                            </Button>
                         )}
                     </div>
                 </div>
@@ -589,7 +611,17 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                                         className="gap-1.5 text-xs h-8"
                                                                         onClick={() => {
                                                                             setOfferReport(report)
-                                                                            setOfferForm(prev => ({ ...prev, position: report.job_title }))
+                                                                            setOfferForm({
+                                                                                position: report.job_title,
+                                                                                salary: "8000",
+                                                                                startDate: "2026-03-15",
+                                                                                benefits: "Medical, Dental, Vision, EPF, SOCSO",
+                                                                                contractType: "permanent",
+                                                                                probation: "3",
+                                                                                annualLeave: "14"
+                                                                            })
+                                                                            setIsEditingOffer(false)
+                                                                            setOfferLetterId(null)
                                                                             setShowOfferModal(true)
                                                                         }}
                                                                     >
@@ -611,6 +643,17 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                                     </Button>
                                                                 </>
                                                             )}
+                                                            {report.decision_status === "offer_sent" && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="gap-1.5 text-xs h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                                                    onClick={() => handleEditOffer(report)}
+                                                                >
+                                                                    <PenLine className="h-3.5 w-3.5" />
+                                                                    Edit Offer
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -629,55 +672,106 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         </div>
     )
 
-    // ── Send Offer handler ──
+    // ── Edit Offer handler ──
+    async function handleEditOffer(report: ResumeReport) {
+        setOfferReport(report)
+        try {
+            const q = query(collection(db, "offer_letters"), where("resume_report_id", "==", report.id), limit(1))
+            const snapshot = await getDocs(q)
+            if (!snapshot.empty) {
+                const docSnap = snapshot.docs[0]
+                const data = docSnap.data()
+                setOfferForm({
+                    position: data.position || report.job_title,
+                    salary: data.salary || "8000",
+                    startDate: data.start_date || "2026-03-15",
+                    benefits: data.benefits || "Medical, Dental, Vision, EPF, SOCSO",
+                    contractType: data.contract_type || "permanent",
+                    probation: data.probation || "3",
+                    annualLeave: data.annual_leave || "14",
+                })
+                setOfferLetterId(docSnap.id)
+                setIsEditingOffer(true)
+                setShowOfferModal(true)
+            } else {
+                toast.error("Could not find the sent offer letter.")
+            }
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to load offer details.")
+        }
+    }
+
+    // ── Send/Update Offer handler ──
     async function handleSendOffer() {
         if (!offerReport) return
 
-        // Update decision status in Firebase
-        updateDecisionStatus(offerReport.id, "offer_sent")
-
-        // Update local state
-        setReports(prev => prev.map(r => r.id === offerReport.id ? { ...r, decision_status: "offer_sent" as DecisionStatus } : r))
-
-        // Save offer letter to Firestore for candidate portal
-        try {
-            await addDoc(collection(db, "offer_letters"), {
-                candidate_name: offerReport.candidate_name,
-                candidate_email: offerReport.candidate_email || "",
-                position: offerForm.position,
-                company_name: offerReport.company_name,
-                salary: offerForm.salary,
-                start_date: offerForm.startDate,
-                benefits: offerForm.benefits,
-                contract_type: offerForm.contractType,
-                probation: offerForm.probation,
-                status: "pending",
-                sent_at: new Date().toISOString(),
-                resume_report_id: offerReport.id,
-            })
-        } catch (err) {
-            console.error("Failed to save offer letter to Firestore:", err)
+        const payload = {
+            candidate_name: offerReport.candidate_name,
+            candidate_email: offerReport.candidate_email || "",
+            position: offerForm.position,
+            company_name: offerReport.company_name,
+            salary: offerForm.salary,
+            start_date: offerForm.startDate,
+            benefits: offerForm.benefits,
+            contract_type: offerForm.contractType,
+            probation: offerForm.probation,
+            annual_leave: offerForm.annualLeave,
+            status: "pending",
+            sent_at: new Date().toISOString(),
+            resume_report_id: offerReport.id,
         }
 
-        // Push notification for candidate portal
-        const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
-        notifs.push({
-            id: Math.random().toString(36).substr(2, 9),
-            type: 'offer_letter',
-            employee: offerReport.candidate_name,
-            title: `Offer Letter: ${offerForm.position}`,
-            message: `You have received an offer letter for the ${offerForm.position} position at ${offerReport.company_name}. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
-            timestamp: new Date().toISOString(),
-            read: false
-        })
-        localStorage.setItem('notifications', JSON.stringify(notifs))
+        try {
+            if (isEditingOffer && offerLetterId) {
+                // Update existing offer
+                await updateDoc(doc(db, "offer_letters", offerLetterId), payload)
+                
+                // Push notification
+                const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
+                notifs.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'offer_updated',
+                    employee: offerReport.candidate_name,
+                    title: `Offer Letter Updated: ${offerForm.position}`,
+                    message: `Your offer letter for the ${offerForm.position} position at ${offerReport.company_name} has been updated.`,
+                    timestamp: new Date().toISOString(),
+                    read: false
+                })
+                localStorage.setItem('notifications', JSON.stringify(notifs))
+                
+                toast.success("Offer Updated!", { description: `Updated offer for ${offerReport.candidate_name}` })
+            } else {
+                // Send new offer
+                await updateDecisionStatus(offerReport.id, "offer_sent")
+                setReports(prev => prev.map(r => r.id === offerReport.id ? { ...r, decision_status: "offer_sent" as DecisionStatus } : r))
+
+                await addDoc(collection(db, "offer_letters"), payload)
+
+                // Push notification
+                const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
+                notifs.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'offer_letter',
+                    employee: offerReport.candidate_name,
+                    title: `Offer Letter: ${offerForm.position}`,
+                    message: `You have received an offer letter for the ${offerForm.position} position at ${offerReport.company_name}. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
+                    timestamp: new Date().toISOString(),
+                    read: false
+                })
+                localStorage.setItem('notifications', JSON.stringify(notifs))
+                
+                toast.success("Offer Letter Sent!", { description: `Offer sent to ${offerReport.candidate_name} for ${offerForm.position}` })
+            }
+        } catch (err) {
+            console.error("Failed to save offer letter:", err)
+            toast.error("Failed to save offer letter")
+            return
+        }
 
         setShowOfferModal(false)
         setShowPreview(false)
         setOfferReport(null)
-        toast.success("Offer Letter Sent!", {
-            description: `Offer sent to ${offerReport.candidate_name} for ${offerForm.position}`
-        })
     }
 
     // ── Offer Modal ──
@@ -687,11 +781,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Send className="h-5 w-5 text-primary" />
-                            Send Offer Letter
+                            {isEditingOffer ? <PenLine className="h-5 w-5 text-blue-600" /> : <Send className="h-5 w-5 text-primary" />}
+                            {isEditingOffer ? "Edit Offer Letter" : "Send Offer Letter"}
                         </DialogTitle>
                         <DialogDescription>
-                            Prepare and send an offer letter to {offerReport?.candidate_name}
+                            {isEditingOffer ? `Update the offer letter for ${offerReport?.candidate_name}` : `Prepare and send an offer letter to ${offerReport?.candidate_name}`}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -748,6 +842,15 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                <div className="space-y-2">
+                                    <Label>Annual Leave (Days)</Label>
+                                    <Input
+                                        type="number"
+                                        value={offerForm.annualLeave}
+                                        onChange={e => setOfferForm(p => ({ ...p, annualLeave: e.target.value }))}
+                                        placeholder="e.g. 14"
+                                    />
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label>Benefits Package</Label>
@@ -801,6 +904,8 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                             <span className="font-medium capitalize">{offerForm.contractType.replace("_", " ")}</span>
                                             <span className="text-slate-500">Probation:</span>
                                             <span className="font-medium">{offerForm.probation === "0" ? "None" : offerForm.probation + " months"}</span>
+                                            <span className="text-slate-500">Annual Leave:</span>
+                                            <span className="font-medium">{offerForm.annualLeave} days</span>
                                         </div>
                                     </div>
                                     <div>
@@ -828,8 +933,8 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                     Edit Details
                                 </Button>
                                 <Button onClick={handleSendOffer} className="gap-2 bg-green-600 hover:bg-green-700">
-                                    <Send className="h-4 w-4" />
-                                    Send Offer Letter
+                                    {isEditingOffer ? <PenLine className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                                    {isEditingOffer ? "Update Offer Letter" : "Send Offer Letter"}
                                 </Button>
                             </DialogFooter>
                         </div>
