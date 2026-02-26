@@ -9,3 +9,4 @@ websockets
 PyMuPDF
 google-generativeai
 python-multipart
+edge-tts
