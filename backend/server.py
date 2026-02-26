@@ -8,7 +8,7 @@ from datetime import datetime
 import chromadb
 import fitz  # PyMuPDF
 import edge_tts
-import google.generativeai as genai
+import requests
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -39,15 +39,37 @@ app.add_middleware(
 # Claude client
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-# Gemini client
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
-    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-    print(f"Gemini API configured")
-else:
-    gemini_model = None
-    print("Warning: GEMINI_API_KEY not set — resume analyzer will not work")
+# Ollama configuration (local LLM for resume analysis)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3")
+print(f"Ollama configured: {OLLAMA_BASE_URL} with model '{OLLAMA_MODEL}'")
+
+
+def _ollama_generate_sync(prompt: str, model: str, max_tokens: int) -> str:
+    """Synchronous Ollama call — runs inside a thread via asyncio.to_thread."""
+    resp = requests.post(
+        f"{OLLAMA_BASE_URL}/api/generate",
+        json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0,       # deterministic = faster (no sampling)
+                "num_predict": max_tokens,
+                "num_ctx": 4096,        # smaller context window = faster
+            },
+            "keep_alive": "5m",         # keep model loaded between requests
+        },
+        timeout=180,
+    )
+    resp.raise_for_status()
+    return resp.json()["response"]
+
+
+async def ollama_generate(prompt: str, model: str = None, max_tokens: int = 1024) -> str:
+    """Async wrapper — offloads the blocking HTTP call to a thread."""
+    model = model or OLLAMA_MODEL
+    return await asyncio.to_thread(_ollama_generate_sync, prompt, model, max_tokens)
 
 # Reports directory
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
@@ -1196,7 +1218,7 @@ async def analyze_resume(
     job_title: str = Form(""),
     candidate_name: str = Form(""),
 ):
-    """Analyze a resume PDF against a job description using Claude AI."""
+    """Analyze a resume PDF against a job description using Ollama (Gemma)."""
     print(f"Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
 
     try:
@@ -1223,85 +1245,51 @@ async def analyze_resume(
 
         print(f"   Extracted {len(extracted_text)} characters from {num_pages} pages")
 
-        # ── STEP 2: Analyze with Claude ──
-        print("Step 2: Analyzing resume with Claude...")
+        # ── STEP 2 & 3: Run analysis + questions in PARALLEL ──
+        print(f"Step 2-3: Analyzing resume + generating questions in parallel with Ollama ({OLLAMA_MODEL})...")
 
-        analysis_prompt = f"""You are an expert HR resume analyst. Analyze the following resume against the provided job description.
+        resume_text = extracted_text[:4000]   # trimmed for speed
+        job_text = job_description[:1500]
 
-Evaluate the resume based on these 6 criteria, listed in descending order of importance:
+        analysis_prompt = f"""You are an HR resume analyst. Score this resume against the job description.
 
-1. **Job Relevance** (Weight: 30%) — How well the resume aligns with the specific job description requirements
-2. **Hard Skills Match** (Weight: 25%) — Technical skills, tools, technologies, and certifications matching the job requirements
-3. **Soft Skills** (Weight: 15%) — Communication, leadership, teamwork, problem-solving indicators
-4. **Work Experience** (Weight: 15%) — Relevance, depth, and progression of professional experience
-5. **Achievements** (Weight: 10%) — Quantifiable accomplishments, awards, and measurable impact
-6. **Education** (Weight: 5%) — Academic background, relevant coursework, and qualifications
+Criteria (score each 0-100, give 1-2 sentence explanation):
+1. Job Relevance (weight:30%) - alignment with job requirements
+2. Hard Skills Match (weight:25%) - technical skills match
+3. Soft Skills (weight:15%) - communication, leadership indicators
+4. Work Experience (weight:15%) - relevance and depth
+5. Achievements (weight:10%) - quantifiable accomplishments
+6. Education (weight:5%) - academic background
 
-For each criterion, provide:
-- A score from 0 to 100
-- A brief explanation (2-3 sentences) justifying the score
+Respond ONLY with this JSON:
+{{"criteria":[{{"criterion":"Job Relevance","weight":30,"score":<n>,"explanation":"<text>"}},{{"criterion":"Hard Skills Match","weight":25,"score":<n>,"explanation":"<text>"}},{{"criterion":"Soft Skills","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Work Experience","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Achievements","weight":10,"score":<n>,"explanation":"<text>"}},{{"criterion":"Education","weight":5,"score":<n>,"explanation":"<text>"}}],"summary":"<3 sentence overall fit summary>"}}
 
-Also provide a short overall summary (3-4 sentences) of the candidate's fit.
+RESUME:
+{resume_text}
 
-Return your response as valid JSON in this exact format:
-{{
-  "criteria": [
-    {{
-      "criterion": "Job Relevance",
-      "weight": 30,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Hard Skills Match",
-      "weight": 25,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Soft Skills",
-      "weight": 15,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Work Experience",
-      "weight": 15,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Achievements",
-      "weight": 10,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Education",
-      "weight": 5,
-      "score": <number>,
-      "explanation": "<text>"
-    }}
-  ],
-  "summary": "<overall summary text>"
-}}
+JOB DESCRIPTION:
+{job_text}
 
---- RESUME TEXT ---
-{extracted_text[:8000]}
+JSON only:"""
 
---- JOB DESCRIPTION ---
-{job_description[:3000]}
+        questions_prompt = f"""Generate 5-8 interview questions to fact-check this resume. Focus on: verifiable claims, technical skills, achievements, project roles, employment gaps.
 
-Respond with ONLY the JSON object, no extra text."""
+Respond ONLY with a JSON array: ["Q1","Q2",...]
 
-        analysis_response = claude_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": analysis_prompt}],
+RESUME:
+{resume_text}
+
+JSON array only:"""
+
+        # Fire both LLM calls concurrently
+        raw_analysis, raw_questions = await asyncio.gather(
+            ollama_generate(analysis_prompt, max_tokens=1024),
+            ollama_generate(questions_prompt, max_tokens=512),
         )
-        raw_analysis = analysis_response.content[0].text.strip()
+        raw_analysis = raw_analysis.strip()
+        raw_questions = raw_questions.strip()
 
-        # Parse JSON from Claude response
+        # Parse analysis JSON
         json_match = re.search(r'(\{.*\})', raw_analysis, re.DOTALL)
         if json_match:
             analysis_data = json.loads(json_match.group(1))
@@ -1311,41 +1299,13 @@ Respond with ONLY the JSON object, no extra text."""
         criteria = analysis_data.get("criteria", [])
         summary = analysis_data.get("summary", "")
 
-        # Calculate weighted total
         weighted_total = sum(
             (c["score"] * c["weight"] / 100) for c in criteria
         )
 
         print(f"   Analysis complete. Weighted score: {weighted_total:.1f}/100")
 
-        # ── STEP 3: Generate fact-checking questions ──
-        print("Step 3: Generating fact-checking questions...")
-
-        questions_prompt = f"""Based on the following resume content, generate 5 to 8 personalized interview questions designed to fact-check and verify the claims made in the resume.
-
-Focus on:
-- Verifiable claims (specific dates, numbers, metrics, percentages)
-- Technical skills mentioned (ask them to elaborate or solve a related problem)
-- Stated achievements (ask for specific details or evidence)
-- Project involvement (ask about their specific contribution and role)
-- Employment transitions (ask about reasons and timelines)
-
-Return your response as a JSON array of strings:
-["Question 1", "Question 2", ...]
-
---- RESUME TEXT ---
-{extracted_text[:6000]}
-
-Respond with ONLY the JSON array, no extra text."""
-
-        questions_response = claude_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": questions_prompt}],
-        )
-        raw_questions = questions_response.content[0].text.strip()
-
-        # Parse JSON questions
+        # Parse questions JSON
         json_arr_match = re.search(r'(\[.*\])', raw_questions, re.DOTALL)
         if json_arr_match:
             fact_check_questions = json.loads(json_arr_match.group(1))

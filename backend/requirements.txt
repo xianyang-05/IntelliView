@@ -7,6 +7,6 @@ chromadb
 pydantic
 websockets
 PyMuPDF
-google-generativeai
+requests
 python-multipart
 edge-tts
