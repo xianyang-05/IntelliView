@@ -234,10 +234,6 @@ export function JobBoard({ onNavigate }: { onNavigate?: (page: string, payload?:
             {/* Job Listings Grid */}
             {!loading && filteredJobs.length > 0 && (
                 <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        Showing <span className="font-semibold text-foreground">{filteredJobs.length}</span>{" "}
-                        {filteredJobs.length === 1 ? "position" : "positions"}
-                    </p>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {filteredJobs.map((job) => {

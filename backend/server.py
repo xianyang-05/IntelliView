@@ -3,6 +3,7 @@ import sys
 import subprocess
 import json
 import re
+from typing import List
 import asyncio
 from datetime import datetime
 import chromadb
@@ -19,6 +20,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import tempfile
 import traceback
+
+from manpower_planning import CompanyProfilingRequest, calculate_manpower_plan
 
 load_dotenv()  # Load .env if exists
 _env_local = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env.local'))
@@ -1533,6 +1536,103 @@ async def performance_review():
         return {"status": "success", "results": results}
     except Exception as e:
         print(f"Performance review error: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+# ═══════════════════════════════════════════════════
+# MANPOWER & BUDGET PLANNING
+# ═══════════════════════════════════════════════════
+
+@app.post("/api/hr/manpower-planning")
+async def manpower_planning_endpoint(req: CompanyProfilingRequest):
+    """Calculate HR Manpower Gap Analysis based on selected positions and budget."""
+    try:
+        # Fetch employees from Firestore
+        employees_ref = firestore_db.collection("employees").where("company_code", "==", req.company_code).stream()
+        all_employees = [doc.to_dict() for doc in employees_ref]
+
+        result = calculate_manpower_plan(req, all_employees)
+        if "error" in result:
+            return JSONResponse(status_code=400, content={"detail": result["error"]})
+        return result
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+# ═══════════════════════════════════════════════════
+# JOB POSTINGS
+# ═══════════════════════════════════════════════════
+
+class JobListingRequest(BaseModel):
+    title: str
+    company: str
+    company_code: str
+    location: str
+    type: str
+    salary_range: str
+    description: str
+    requirements: List[str]
+
+class BulkJobListingRequest(BaseModel):
+    jobs: List[JobListingRequest]
+
+@app.get("/api/hr/jobs")
+async def get_jobs(company_code: str):
+    """Fetch job listings for a specific company."""
+    try:
+        jobs_ref = firestore_db.collection("job_listings").where("company_code", "==", company_code).stream()
+        
+        jobs = []
+        for doc in jobs_ref:
+            job_data = doc.to_dict()
+            job_data["id"] = doc.id
+            jobs.append(job_data)
+            
+        return {"jobs": jobs}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.post("/api/hr/jobs")
+async def create_job(req: JobListingRequest):
+    """Create a single job listing."""
+    try:
+        job_data = req.dict()
+        job_data["posted_at"] = datetime.utcnow().isoformat() + "Z"
+        job_data["is_active"] = True
+        
+        doc_ref = firestore_db.collection("job_listings").document()
+        doc_ref.set(job_data)
+        
+        job_data["id"] = doc_ref.id
+        return {"success": True, "job": job_data}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.post("/api/hr/jobs/bulk")
+async def create_jobs_bulk(req: BulkJobListingRequest):
+    """Bulk create job listings from manpower planning."""
+    try:
+        batch = firestore_db.batch()
+        created_jobs = []
+        
+        for job_req in req.jobs:
+            job_data = job_req.dict()
+            job_data["posted_at"] = datetime.utcnow().isoformat() + "Z"
+            job_data["is_active"] = True
+            
+            doc_ref = firestore_db.collection("job_listings").document()
+            batch.set(doc_ref, job_data)
+            
+            job_data["id"] = doc_ref.id
+            created_jobs.append(job_data)
+            
+        batch.commit()
+        return {"success": True, "jobs": created_jobs}
+    except Exception as e:
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 

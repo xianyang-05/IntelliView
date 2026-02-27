@@ -109,16 +109,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     useEffect(() => {
         async function fetchReports() {
             try {
-                const companyCode = currentUser?.company_id || ""
-                let q
-                if (companyCode) {
-                    q = query(
-                        collection(db, "resume_reports"),
-                        where("company_code", "==", companyCode)
-                    )
-                } else {
-                    q = query(collection(db, "resume_reports"))
-                }
+                const companyCode = currentUser?.companyId || "ZHR-001"
+                const q = query(
+                    collection(db, "resume_reports"),
+                    where("company_code", "==", companyCode)
+                )
 
                 const snapshot = await getDocs(q)
                 const data: ResumeReport[] = snapshot.docs.map((doc) => ({

@@ -15,6 +15,8 @@ import { HrDashboard } from "./hr/hr-dashboard"
 import { HrContractGeneration } from "./hr/hr-contract-generation"
 import { HrPerformance } from "./hr/hr-performance-main"
 import { HrAiDecisionReview } from "./hr/hr-ai-decision-review"
+import { HrManpowerPlanning } from "./hr/hr-manpower-planning"
+import { HrJobPostings } from "./hr/hr-job-postings"
 import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
 import { CandidateHome } from "./candidate/candidate-home"
@@ -111,6 +113,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const hrNav = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "budget-planning", label: "Budget Planning", icon: Briefcase },
+    { id: "job-postings", label: "Job Postings", icon: Users },
     { id: "interviews", label: "Interview Center", icon: Users },
     { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
     { id: "performance", label: "Performance", icon: TrendingUp },
@@ -288,6 +292,10 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       switch (activePage) {
         case "dashboard":
           return <HrDashboard />
+        case "budget-planning":
+          return <HrManpowerPlanning currentUser={currentUser} />
+        case "job-postings":
+          return <HrJobPostings companyCode={currentUser?.companyId || "ZHR-001"} companyName={"ZeroHR Demo Corp"} />
         case "interviews":
           return <HrInterviewCenter onNavigate={setActivePage} currentUser={currentUser} />
         case "performance":

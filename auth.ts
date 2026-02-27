@@ -11,7 +11,7 @@ const DEMO_ACCOUNTS = [
         id: "demo-hr-001",
         name: "Rachel Lim",
         role: "hr_admin",
-        companyId: "zerohr-demo",
+        companyId: "ZHR-001",
     },
     {
         email: process.env.DEMO_EMPLOYEE_EMAIL || "alex.chan@zerohr.com",
@@ -19,7 +19,7 @@ const DEMO_ACCOUNTS = [
         id: "demo-employee-001",
         name: "Alex Chan",
         role: "employee",
-        companyId: "zerohr-demo",
+        companyId: "ZHR-001",
     },
     {
         email: process.env.DEMO_CANDIDATE_EMAIL || "candidate@zerohr.com",
