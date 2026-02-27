@@ -9,3 +9,5 @@ websockets
 PyMuPDF
 google-generativeai
 python-multipart
+requests
+weasyprint
