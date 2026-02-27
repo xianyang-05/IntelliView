@@ -101,7 +101,6 @@ export function ChatWidget({ isHrMode, isCandidateMode = false, currentUserIdOve
     const unsubMessagesRef = useRef<(() => void) | null>(null)
 
     const currentUserId = currentUserIdOverride || (isHrMode ? HR_USER_ID : EMPLOYEE_USER_ID)
-    console.log("ChatWidget mounted with currentUserId:", currentUserId, "override:", currentUserIdOverride);
 
     // ── Auto-open from external trigger ──
     useEffect(() => {
