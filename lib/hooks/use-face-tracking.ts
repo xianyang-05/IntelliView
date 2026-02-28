@@ -259,7 +259,8 @@ export function useFaceTracking({ enabled, videoRef, onViolation }: FaceTracking
                 lastTimestampRef.current = timestamp;
 
                 // Extra safety: re-verify video is truly ready right before detection
-                if (video.paused || video.ended || video.videoWidth === 0 || video.videoHeight === 0) {
+                // Using HTMLMediaElement.HAVE_CURRENT_DATA (2) or HAVE_ENOUGH_DATA (4)
+                if (video.paused || video.ended || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0 || video.currentTime === 0) {
                     rafRef.current = requestAnimationFrame(detect);
                     return;
                 }
@@ -269,7 +270,7 @@ export function useFaceTracking({ enabled, videoRef, onViolation }: FaceTracking
                     result = landmarker.detectForVideo(video, timestamp);
                 } catch (e) {
                     // MediaPipe can throw if video state changes between check and call
-                    console.warn('[FaceTracking] MediaPipe detectForVideo error:', e);
+                    // Silencing this log as requested to prevent console clutter
                     rafRef.current = requestAnimationFrame(detect);
                     return;
                 }

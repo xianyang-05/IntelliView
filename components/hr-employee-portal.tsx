@@ -123,7 +123,6 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const candidateNav = [
     { id: "job-board", label: "Job Board", icon: Briefcase },
-    { id: "ai-interview", label: "AI Interview", icon: Video },
     { id: "my-offers", label: "My Offers", icon: Mail },
   ]
 
