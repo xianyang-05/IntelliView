@@ -759,13 +759,13 @@ export function HrCompliance() {
               <div className="relative z-10 flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-1">
-                    <Sparkles className="h-5 w-5 text-indigo-400" /> ZeroHR Automation Available
+                    <Sparkles className="h-5 w-5 text-indigo-400" /> OpenHire Automation Available
                   </h3>
                   <p className="text-slate-400 text-sm mb-3">We can handle some of these tasks for you.</p>
                   <p className="text-slate-300 max-w-lg">
-                    {selectedUpdate?.id === 1 && "ZeroHR can auto-update your payroll formulas and generate a hybrid work policy template based on common industry standards."}
-                    {selectedUpdate?.id === 2 && "ZeroHR can auto-update your compliance calendar and send deadline reminders to the Finance team."}
-                    {selectedUpdate?.id === 3 && "ZeroHR can auto-schedule quarterly fire drills and generate updated emergency signage templates."}
+                    {selectedUpdate?.id === 1 && "OpenHire can auto-update your payroll formulas and generate a hybrid work policy template based on common industry standards."}
+                    {selectedUpdate?.id === 2 && "OpenHire can auto-update your compliance calendar and send deadline reminders to the Finance team."}
+                    {selectedUpdate?.id === 3 && "OpenHire can auto-schedule quarterly fire drills and generate updated emergency signage templates."}
                   </p>
                 </div>
                 <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-900/20">Auto-Apply Changes</Button>

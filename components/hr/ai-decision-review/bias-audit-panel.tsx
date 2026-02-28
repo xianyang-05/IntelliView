@@ -51,7 +51,7 @@ export function BiasAuditPanel({ decision }: { decision: AIDecision }) {
             <div className="p-4 bg-secondary/30 rounded-xl border text-sm text-muted-foreground flex gap-3">
                 <Target className="h-5 w-5 shrink-0 text-muted-foreground" />
                 <p>
-                    <strong>Note:</strong> Bias scores are calculated locally via our isolated ML models, ensuring compliance with internal ZeroHR fair-use guidelines.
+                    <strong>Note:</strong> Bias scores are calculated locally via our isolated ML models, ensuring compliance with internal OpenHire fair-use guidelines.
                 </p>
             </div>
         </div>

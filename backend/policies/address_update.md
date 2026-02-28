@@ -2,7 +2,7 @@
 
 To update your home address in the system, please follow these steps:
 
-1. Log in to the ZeroHR portal.
+1. Log in to the OpenHire portal.
 2. Navigate to "My Profile".
 3. Click on "Edit Information".
 4. Enter your new address.

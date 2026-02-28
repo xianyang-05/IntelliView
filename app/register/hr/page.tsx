@@ -2,8 +2,8 @@ import { HRRegistrationWizard } from "@/components/auth/hr-registration-wizard"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
-    title: "HR Registration - ZeroHR",
-    description: "Set up your company workspace on ZeroHR",
+    title: "HR Registration - OpenHire",
+    description: "Set up your company workspace on OpenHire",
 }
 
 export default function HRRegistrationPage() {
@@ -11,7 +11,7 @@ export default function HRRegistrationPage() {
         <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
             <div className="w-full max-w-4xl space-y-8">
                 <div className="text-center space-y-2">
-                    <h1 className="text-3xl font-bold tracking-tight">Welcome to ZeroHR</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Welcome to OpenHire</h1>
                     <p className="text-muted-foreground">Let&apos;s get your company set up in minutes.</p>
                 </div>
                 <HRRegistrationWizard />

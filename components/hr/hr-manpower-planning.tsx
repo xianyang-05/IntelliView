@@ -23,18 +23,18 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
   const [stage, setStage] = useState("Early Startup")
   const [companyDescription, setCompanyDescription] = useState("We are an innovative HR tech startup aiming to launch an AI-powered talent acquisition module by next quarter.")
   const [selectedRoles, setSelectedRoles] = useState<string[]>(["Engineer", "Accountant"])
-  
+
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Job Posting State
   const [isPostModalOpen, setIsPostModalOpen] = useState(false)
   const [isPostingJobs, setIsPostingJobs] = useState(false)
   const [postSuccess, setPostSuccess] = useState(false)
 
   const toggleRole = (role: string) => {
-    setSelectedRoles(prev => 
+    setSelectedRoles(prev =>
       prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
     )
   }
@@ -52,7 +52,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
 
     try {
       const companyCode = currentUser?.companyId || "ZHR-001"
-      
+
       // Fetch employees from Firestore via client SDK
       const q = query(collection(db, "employees"), where("company_code", "==", companyCode))
       const querySnapshot = await getDocs(q)
@@ -69,7 +69,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
           stage,
           company_description: companyDescription,
           selected_positions: selectedRoles,
-          company_name: "ZeroHR Demo Corp",
+          company_name: "OpenHire Demo Corp",
           company_code: companyCode,
           employees: fetchedEmployees
         }),
@@ -91,18 +91,18 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
 
   const handleBulkPostJobs = async () => {
     if (!results || !results.role_details) return
-    
+
     setIsPostingJobs(true)
     try {
       // Create job objects for each recommended hire
       const jobsToPost: any[] = []
-      
+
       results.role_details.forEach((role: any) => {
         if (role.recommended_hires > 0) {
           // Create 1 job listing entry per position regardless of hires needed
           jobsToPost.push({
             title: role.role,
-            company: "ZeroHR Demo Corp",
+            company: "OpenHire Demo Corp",
             company_code: currentUser?.companyId || "ZHR-001",
             location: "Kuala Lumpur, Malaysia (Hybrid)",
             type: "Full-time",
@@ -124,7 +124,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
 
       const batch = writeBatch(db)
       const jobsCollection = collection(db, "job_listings")
-      
+
       jobsToPost.forEach(jobData => {
         const docRef = doc(jobsCollection)
         batch.set(docRef, {
@@ -135,10 +135,10 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
       })
 
       await batch.commit()
-      
+
       setIsPostModalOpen(false)
       setPostSuccess(true)
-      
+
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -172,9 +172,9 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
               <Label>Annual Budget (MYR)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  type="number" 
-                  placeholder="e.g. 1000000" 
+                <Input
+                  type="number"
+                  placeholder="e.g. 1000000"
                   className="pl-9"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
@@ -212,7 +212,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
 
             <div className="space-y-2">
               <Label>Company Description</Label>
-              <Textarea 
+              <Textarea
                 placeholder="Briefly describe what your company does..."
                 className="resize-none h-24"
                 value={companyDescription}
@@ -224,23 +224,23 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
               <Label>Required Positions (Select at least 1)</Label>
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-lg border">
                 {PREDEFINED_ROLES.map(role => (
-                   <div key={role} className="flex items-center space-x-2">
-                   <Checkbox 
-                     id={`role-${role}`} 
-                     checked={selectedRoles.includes(role)}
-                     onCheckedChange={() => toggleRole(role)}
-                   />
-                   <label
-                     htmlFor={`role-${role}`}
-                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                   >
-                     {role}
-                   </label>
-                 </div>
+                  <div key={role} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`role-${role}`}
+                      checked={selectedRoles.includes(role)}
+                      onCheckedChange={() => toggleRole(role)}
+                    />
+                    <label
+                      htmlFor={`role-${role}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {role}
+                    </label>
+                  </div>
                 ))}
               </div>
             </div>
-            
+
             {error && (
               <div className="p-3 bg-red-50 text-red-600 text-sm rounded-md flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -249,8 +249,8 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
             )}
           </CardContent>
           <CardFooter className="bg-slate-50 pt-4 rounded-b-xl border-t">
-            <Button 
-              className="w-full bg-emerald-600 hover:bg-emerald-700" 
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
               onClick={handleAnalyze}
               disabled={isLoading}
             >
@@ -269,13 +269,13 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
         {/* Results Column */}
         <div className="lg:col-span-2 space-y-6">
           {isLoading ? (
-             <Card className="h-full flex flex-col items-center justify-center min-h-[400px] border-dashed">
-               <Loader2 className="h-12 w-12 text-emerald-500 animate-spin mb-4" />
-               <h3 className="text-xl font-medium">Running Allocations...</h3>
-               <p className="text-muted-foreground mt-2 max-w-sm text-center">
-                 Mapping existing headcounts and optimizing budget distributions across selected roles based on relative weights.
-               </p>
-             </Card>
+            <Card className="h-full flex flex-col items-center justify-center min-h-[400px] border-dashed">
+              <Loader2 className="h-12 w-12 text-emerald-500 animate-spin mb-4" />
+              <h3 className="text-xl font-medium">Running Allocations...</h3>
+              <p className="text-muted-foreground mt-2 max-w-sm text-center">
+                Mapping existing headcounts and optimizing budget distributions across selected roles based on relative weights.
+              </p>
+            </Card>
           ) : results ? (
             <>
               {/* Budget Overview */}
@@ -308,15 +308,15 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
                       RM {Math.floor(results.summary.unallocated_buffer).toLocaleString()}
                     </div>
                     {results.summary.unallocated_buffer < 0 && (
-                       <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                         <AlertTriangle className="h-3 w-3" /> Budget Deficit
-                       </p>
+                      <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Budget Deficit
+                      </p>
                     )}
                   </CardContent>
                 </Card>
               </div>
 
-            {/* Roles Table */}
+              {/* Roles Table */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="space-y-1">
@@ -326,7 +326,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
                     </CardDescription>
                   </div>
                   {totalRecommendedHires > 0 && (
-                    <Button 
+                    <Button
                       onClick={() => setIsPostModalOpen(true)}
                       className="bg-emerald-600 hover:bg-emerald-700"
                       disabled={postSuccess}
@@ -405,7 +405,7 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
               This will automatically create {totalRecommendedHires} job listings in your Job Postings dashboard based on the manpower analysis.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4 space-y-3">
             {results?.role_details?.filter((r: any) => r.recommended_hires > 0).map((role: any, idx: number) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border rounded-md">
@@ -420,8 +420,8 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPostModalOpen(false)}>Cancel</Button>
-            <Button 
-              className="bg-emerald-600 hover:bg-emerald-700" 
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
               onClick={handleBulkPostJobs}
               disabled={isPostingJobs}
             >

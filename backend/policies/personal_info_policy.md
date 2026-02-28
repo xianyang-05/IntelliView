@@ -6,7 +6,7 @@ Employees are responsible for keeping their personal information up to date in t
 
 ## 2. What Can Be Updated
 
-Employees can update the following information through the ZeroHR self-service portal:
+Employees can update the following information through the OpenHire self-service portal:
 
 Self-service updates (no approval required): Phone number, emergency contact details, communication preferences, and profile photo.
 
@@ -18,7 +18,7 @@ Updates requiring documentation: Legal name change (requires legal documentation
 
 To update your home address:
 
-Step 1: Go to the ZeroHR portal and navigate to "Profile" or ask the HR chatbot "Update my address."
+Step 1: Go to the OpenHire portal and navigate to "Profile" or ask the HR chatbot "Update my address."
 Step 2: Enter your new address including street, city, state/province, postal code, and country.
 Step 3: The system will validate the address format automatically.
 Step 4: Once submitted, the following records will be updated automatically: payroll records, tax documentation (W-4 or equivalent), benefits enrollment records, and emergency contact records.

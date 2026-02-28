@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="public/images/zerohr-logo.png" alt="ZeroHR Logo" width="80" />
+  <img src="public/images/openhire-logo.png" alt="OpenHire Logo" width="80" />
 </p>
 
-<h1 align="center">ZeroHR</h1>
+<h1 align="center">OpenHire</h1>
 
 <p align="center">
   <strong>AI-Powered HR Portal with Role-Based Access Control</strong>
@@ -65,7 +65,7 @@
 ## 📁 Project Structure
 
 ```
-zerohr/
+openhire/
 ├── app/                    # Next.js App Router pages & API routes
 │   ├── api/                # API endpoints (auth, chat proxy)
 │   ├── login/              # Login page
@@ -110,8 +110,8 @@ zerohr/
 ### 1. Clone & Install Frontend
 
 ```bash
-git clone https://github.com/your-org/zerohr.git
-cd zerohr
+git clone https://github.com/your-org/openhire.git
+cd openhire
 npm install
 ```
 
@@ -159,7 +159,7 @@ npm run dev                 # Starts on http://localhost:3000
 
 ## 🔐 Role-Based Access Control
 
-ZeroHR implements a three-tier RBAC system enforced at both the **API level** and the **database level** (Supabase RLS):
+OpenHire implements a three-tier RBAC system enforced at both the **API level** and the **database level** (Supabase RLS):
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -189,9 +189,9 @@ ZeroHR implements a three-tier RBAC system enforced at both the **API level** an
 
 | Role | Email | Description |
 |---|---|---|
-| Employee | `alex.chan@zerohr.com` | Standard employee with personal data access |
-| Manager | `david.wong@zerohr.com` | Manager with direct reports |
-| HR Admin | `rachel.lim@zerohr.com` | Full admin access to all data |
+| Employee | `alex.chan@openhire.com` | Standard employee with personal data access |
+| Manager | `david.wong@openhire.com` | Manager with direct reports |
+| HR Admin | `rachel.lim@openhire.com` | Full admin access to all data |
 
 ---
 

@@ -193,10 +193,10 @@ export function IntelliViewHome() {
                         <CardContent>
                             <div
                                 className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer group ${isDragging
-                                        ? "border-indigo-500 bg-indigo-50 scale-[1.01]"
-                                        : uploadedFile
-                                            ? "border-emerald-300 bg-emerald-50"
-                                            : "border-muted-foreground/20 hover:border-indigo-400 hover:bg-indigo-50/50"
+                                    ? "border-indigo-500 bg-indigo-50 scale-[1.01]"
+                                    : uploadedFile
+                                        ? "border-emerald-300 bg-emerald-50"
+                                        : "border-muted-foreground/20 hover:border-indigo-400 hover:bg-indigo-50/50"
                                     }`}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}

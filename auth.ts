@@ -6,7 +6,7 @@ import { authConfig } from "./auth.config"
 // Demo accounts — matched by email+password from env vars
 const DEMO_ACCOUNTS = [
     {
-        email: process.env.DEMO_HR_EMAIL || "rachel.lim@zerohr.com",
+        email: process.env.DEMO_HR_EMAIL || "rachel.lim@openhire.com",
         password: process.env.DEMO_HR_PASSWORD || "demo-hr-2024",
         id: "demo-hr-001",
         name: "Rachel Lim",
@@ -14,7 +14,7 @@ const DEMO_ACCOUNTS = [
         companyId: "ZHR-001",
     },
     {
-        email: process.env.DEMO_EMPLOYEE_EMAIL || "alex.chan@zerohr.com",
+        email: process.env.DEMO_EMPLOYEE_EMAIL || "alex.chan@openhire.com",
         password: process.env.DEMO_EMPLOYEE_PASSWORD || "demo-employee-2024",
         id: "demo-employee-001",
         name: "Alex Chan",
@@ -22,7 +22,7 @@ const DEMO_ACCOUNTS = [
         companyId: "ZHR-001",
     },
     {
-        email: process.env.DEMO_CANDIDATE_EMAIL || "candidate@zerohr.com",
+        email: process.env.DEMO_CANDIDATE_EMAIL || "candidate@openhire.com",
         password: process.env.DEMO_CANDIDATE_PASSWORD || "demo-candidate-2024",
         id: "demo-candidate-001",
         name: "Jordan Lee",

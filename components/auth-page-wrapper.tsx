@@ -10,7 +10,7 @@ export function AuthPageWrapper({ children }: AuthPageWrapperProps) {
             <div className="w-full max-w-[450px] space-y-6">
                 <div className="flex justify-center">
                     <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-                        <span>ZeroHR</span>
+                        <span>OpenHire</span>
                     </Link>
                 </div>
                 {children}

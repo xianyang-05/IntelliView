@@ -26,7 +26,7 @@ export default function SignupPage() {
                             </svg>
                         </div>
                     </div>
-                    <CardTitle className="text-2xl font-bold">Join ZeroHR</CardTitle>
+                    <CardTitle className="text-2xl font-bold">Join OpenHire</CardTitle>
                     <CardDescription>
                         Select your role to get started
                     </CardDescription>

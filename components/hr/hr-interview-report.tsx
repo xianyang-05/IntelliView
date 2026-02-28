@@ -102,9 +102,8 @@ export function HrInterviewReport({ report, onClose }: HrInterviewReportProps) {
             </div>
             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                 <div
-                    className={`h-full rounded-full transition-all ${
-                        score >= 70 ? "bg-green-500" : score >= 50 ? "bg-yellow-500" : "bg-red-500"
-                    }`}
+                    className={`h-full rounded-full transition-all ${score >= 70 ? "bg-green-500" : score >= 50 ? "bg-yellow-500" : "bg-red-500"
+                        }`}
                     style={{ width: `${score}%` }}
                 />
             </div>
@@ -123,9 +122,8 @@ export function HrInterviewReport({ report, onClose }: HrInterviewReportProps) {
                 <span className="text-white font-medium">{title}</span>
             </div>
             <div className="flex items-center gap-3">
-                <span className={`text-sm font-semibold ${
-                    score >= 70 ? "text-green-400" : score >= 50 ? "text-yellow-400" : "text-red-400"
-                }`}>
+                <span className={`text-sm font-semibold ${score >= 70 ? "text-green-400" : score >= 50 ? "text-yellow-400" : "text-red-400"
+                    }`}>
                     {score}/100
                 </span>
                 {expandedSections[sectionKey] ? (
@@ -228,9 +226,8 @@ export function HrInterviewReport({ report, onClose }: HrInterviewReportProps) {
                                 <div key={i} className="bg-[#202124] rounded-lg p-3">
                                     <div className="flex justify-between items-start mb-1">
                                         <p className="text-white text-xs font-medium">Q{i + 1}: {q.question}</p>
-                                        <span className={`text-xs font-semibold ${
-                                            q.score >= 70 ? "text-green-400" : q.score >= 50 ? "text-yellow-400" : "text-red-400"
-                                        }`}>{q.score}</span>
+                                        <span className={`text-xs font-semibold ${q.score >= 70 ? "text-green-400" : q.score >= 50 ? "text-yellow-400" : "text-red-400"
+                                            }`}>{q.score}</span>
                                     </div>
                                     <p className="text-gray-400 text-xs mb-1">{q.answer_summary}</p>
                                     <p className="text-blue-400 text-xs">{q.feedback}</p>

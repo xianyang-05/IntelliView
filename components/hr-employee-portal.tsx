@@ -295,7 +295,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         case "budget-planning":
           return <HrManpowerPlanning currentUser={currentUser} />
         case "job-postings":
-          return <HrJobPostings companyCode={currentUser?.companyId || "ZHR-001"} companyName={"ZeroHR Demo Corp"} />
+          return <HrJobPostings companyCode={currentUser?.companyId || "ZHR-001"} companyName={"OpenHire Demo Corp"} />
         case "interviews":
           return <HrInterviewCenter onNavigate={setActivePage} currentUser={currentUser} />
         case "performance":
@@ -330,9 +330,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
       {activePage !== "interviews" && (
         <aside className="w-64 border-r bg-card flex flex-col">
           <div className="p-6 border-b">
-            <div className="flex items-center gap-2 mb-4">
-              <img src="/logo.png" alt="ZeroHR Logo" className="h-8 w-8 object-contain" />
-              <span className="text-xl font-semibold">ZeroHR</span>
+            <div className="flex items-center mb-4">
+              <img src="/logo.jpeg" alt="OpenHire Logo" className="h-10 w-auto object-contain" />
             </div>
 
             {/* Portal Selector */}
@@ -340,9 +339,9 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
               value={portalMode}
               onValueChange={async (value: PortalMode) => {
                 const demoCredentials: Record<PortalMode, { email: string; password: string }> = {
-                  hr: { email: "rachel.lim@zerohr.com", password: "demo-hr-2024" },
-                  employee: { email: "alex.chan@zerohr.com", password: "demo-employee-2024" },
-                  candidate: { email: "candidate@zerohr.com", password: "demo-candidate-2024" },
+                  hr: { email: "rachel.lim@openhire.com", password: "demo-hr-2024" },
+                  employee: { email: "alex.chan@openhire.com", password: "demo-employee-2024" },
+                  candidate: { email: "candidate@openhire.com", password: "demo-candidate-2024" },
                 }
                 const creds = demoCredentials[value]
                 const result = await signIn("credentials", {
@@ -357,9 +356,6 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
             >
               <SelectTrigger className="w-full bg-secondary border-none h-11">
                 <div className="flex items-center gap-2">
-                  {portalMode === "employee" && <User className="h-4 w-4 text-muted-foreground" />}
-                  {portalMode === "hr" && <Building2 className="h-4 w-4 text-muted-foreground" />}
-                  {portalMode === "candidate" && <Eye className="h-4 w-4 text-muted-foreground" />}
                   <SelectValue />
                 </div>
               </SelectTrigger>
@@ -598,7 +594,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
                 Offer Letter Received!
               </DialogTitle>
               <DialogDescription>
-                You have received a new offer letter from ZeroHR.
+                You have received a new offer letter from OpenHire.
               </DialogDescription>
             </DialogHeader>
             {offerDetails && (

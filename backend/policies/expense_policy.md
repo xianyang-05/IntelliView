@@ -48,7 +48,7 @@ All expense claims must be submitted within 30 days of the expense being incurre
 - Names of attendees (for meals/entertainment)
 - Project or cost center code
 
-Submit all expenses through the ZeroHR self-service portal. Claims under $500 require manager approval only. Claims over $500 require both manager and finance approval.
+Submit all expenses through the OpenHire self-service portal. Claims under $500 require manager approval only. Claims over $500 require both manager and finance approval.
 
 ## 5. Reimbursement Timeline
 

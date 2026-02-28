@@ -38,7 +38,7 @@ export function ContractContent({ highlightSectionId, signatureUrl, isSigned }: 
 
             <p className="font-bold">RE: AMENDMENT TO EMPLOYMENT TERMS</p>
 
-            <p>We are pleased to confirm the following amendments to your employment terms with ZeroHR (the &quot;Company&quot;), effective from March 1, 2026.</p>
+            <p>We are pleased to confirm the following amendments to your employment terms with OpenHire (the &quot;Company&quot;), effective from March 1, 2026.</p>
 
             <div className="space-y-4">
                 <div>
@@ -74,7 +74,7 @@ export function ContractContent({ highlightSectionId, signatureUrl, isSigned }: 
                 <p>Please confirm your acceptance by signing below.</p>
                 <div className="mt-8 space-y-4">
                     <div>
-                        <p className="font-bold">For ZeroHR</p>
+                        <p className="font-bold">For OpenHire</p>
                         <div className="mt-2 border-b border-border w-48">&nbsp;</div>
                         <p className="text-muted-foreground text-xs mt-1">Authorized Signatory</p>
                     </div>

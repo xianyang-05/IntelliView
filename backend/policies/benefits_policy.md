@@ -22,7 +22,7 @@ Employees may add eligible dependents to their health insurance and benefits pla
 
 ### 3.1 How to Add a Dependent
 
-To add a dependent, employees must submit the following through the ZeroHR self-service portal or by contacting HR:
+To add a dependent, employees must submit the following through the OpenHire self-service portal or by contacting HR:
 
 Step 1: Navigate to "Requests" and select "Add Dependent"
 Step 2: Provide the dependent's full legal name, date of birth, and relationship

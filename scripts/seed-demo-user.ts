@@ -21,7 +21,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 async function seedDemoUser() {
-    const email = 'alex.chan@zerohr.com'
+    const email = 'alex.chan@openhire.com'
     const password = 'password123'
     const name = 'Alex Chan'
 

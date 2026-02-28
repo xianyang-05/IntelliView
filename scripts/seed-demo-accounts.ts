@@ -28,21 +28,21 @@ const db = getFirestore()
 // ── Demo accounts definition ──
 const DEMO_ACCOUNTS = [
     {
-        email: "rachel.lim@zerohr.com",
+        email: "rachel.lim@openhire.com",
         password: "demo-hr-2024",
         displayName: "Rachel Lim",
         role: "hr_admin",
         companyId: "GREENLEAF-2026",
     },
     {
-        email: "alex.chan@zerohr.com",
+        email: "alex.chan@openhire.com",
         password: "demo-employee-2024",
         displayName: "Alex Chan",
         role: "employee",
-        companyId: "zerohr-demo",
+        companyId: "openhire-demo",
     },
     {
-        email: "candidate@zerohr.com",
+        email: "candidate@openhire.com",
         password: "demo-candidate-2024",
         displayName: "Jordan Lee",
         role: "candidate",
@@ -54,18 +54,18 @@ async function seed() {
     console.log("🌱 Seeding demo accounts...\n")
 
     // Create demo company first
-    const companyRef = db.collection("companies").doc("zerohr-demo")
+    const companyRef = db.collection("companies").doc("openhire-demo")
     const companySnap = await companyRef.get()
     if (!companySnap.exists) {
         await companyRef.set({
-            name: "ZeroHR Demo Corp",
-            company_code: "ZEROHR-2026",
+            name: "OpenHire Demo Corp",
+            company_code: "OPENHIRE-2026",
             policy_mode: "standard",
             created_at: new Date().toISOString(),
         })
-        console.log("✅ Created demo company: ZeroHR Demo Corp")
+        console.log("✅ Created demo company: OpenHire Demo Corp")
     } else {
-        console.log("⏭️  Company 'ZeroHR Demo Corp' already exists")
+        console.log("⏭️  Company 'OpenHire Demo Corp' already exists")
     }
 
     for (const account of DEMO_ACCOUNTS) {

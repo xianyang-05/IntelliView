@@ -21,12 +21,12 @@ export default function EmployeeRegistrationPage() {
                     >
                         <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
                     </svg>
-                    ZeroHR
+                    OpenHire
                 </div>
                 <div className="relative z-20 mt-auto">
                     <blockquote className="space-y-2">
                         <p className="text-lg">
-                            &ldquo;ZeroHR has completely transformed how I manage my employment details. It&apos;s seamless and intuitive.&rdquo;
+                            &ldquo;OpenHire has completely transformed how I manage my employment details. It&apos;s seamless and intuitive.&rdquo;
                         </p>
                         <footer className="text-sm">Sofia Davis</footer>
                     </blockquote>

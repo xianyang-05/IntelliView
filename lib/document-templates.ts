@@ -26,7 +26,7 @@ const COMPANY_INFO = {
     name: "Zero HR Inc.",
     address: "123 Business Avenue, Tech City, TC 12345",
     phone: "(555) 123-4567",
-    email: "hr@zerohr.com"
+    email: "hr@openhire.com"
 }
 
 export const generateOfferLetterTemplate = (data: DocumentData): string => {

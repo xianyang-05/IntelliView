@@ -15,7 +15,7 @@ if not url or not key:
 supabase: Client = create_client(url, key)
 
 def test_get_employee():
-    email = "alex.chen@zerohr.com"
+    email = "alex.chen@openhire.com"
     print(f"Testing lookup for: {email}")
     try:
         response = supabase.table("employees").select("*").eq("email", email).execute()

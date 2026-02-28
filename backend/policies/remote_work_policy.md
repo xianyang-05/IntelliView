@@ -27,7 +27,7 @@ Employees wishing to work from another country must obtain prior approval from b
 - Time zone: The employee must maintain at least 4 hours of overlap with their team's core working hours
 - Equipment and security: The employee must use company-approved VPN and ensure secure internet access
 
-Requests must be submitted at least 2 weeks in advance through the ZeroHR portal.
+Requests must be submitted at least 2 weeks in advance through the OpenHire portal.
 
 ## 6. Home Office Setup
 

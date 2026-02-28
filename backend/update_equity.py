@@ -17,7 +17,7 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-email = "alex.chen@zerohr.com"
+email = "alex.chen@openhire.com"
 
 # 1. Get Employee ID
 docs = db.collection("employees").where(filter=FieldFilter("email", "==", email)).limit(1).stream()

@@ -9,7 +9,7 @@ export function EmployeeHome() {
     position: "Senior Product Designer",
     department: "Design",
     employeeId: "EMP-2024-0142",
-    email: "alex.chan@zerohr.com",
+    email: "alex.chan@openhire.com",
     phone: "+60 12-345 6789",
     location: "Kuala Lumpur, Malaysia",
     startDate: "March 1, 2024",

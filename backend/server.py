@@ -352,7 +352,7 @@ def get_employee_by_email(email: str) -> dict | None:
             print(f"Found via ilike: {response2.data[0].get('first_name')} {response2.data[0].get('last_name')}")
             return response2.data[0]
 
-        # Demo fallback: try alex.chan@zerohr.com first, then first employee
+        # Demo fallback: try alex.chan@openhire.com first, then first employee
         print(f" No employee found for '{email}'. Trying demo fallback...")
         alex = supabase.table("employees").select("*").ilike("email", "%alex%chan%").execute()
         if alex.data:
@@ -779,7 +779,7 @@ def get_manager_context(manager_email: str, question_lower: str) -> str:
 def build_system_prompt(role: str, rag_context: str, employee_context: str, sources: list[str]) -> str:
     """Build a role-aware system prompt with RAG context injected."""
 
-    base = """You are ZeroHR, an AI-powered HR assistant for ZeroHR Technologies, a Malaysian tech company.
+    base = """You are OpenHire, an AI-powered HR assistant for OpenHire Technologies, a Malaysian tech company.
 You help employees and HR admins with HR questions using REAL company policies and employee data.
 
 CRITICAL RULES:
@@ -1806,5 +1806,5 @@ if __name__ == "__main__":
             shell=True, capture_output=True
         )
     import uvicorn
-    print("ZeroHR Backend starting...")
+    print("OpenHire Backend starting...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

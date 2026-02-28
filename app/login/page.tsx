@@ -51,9 +51,9 @@ export default function LoginPage() {
         setError(null)
 
         const demoCredentials = {
-            hr: { email: "rachel.lim@zerohr.com", password: "demo-hr-2024" },
-            employee: { email: "alex.chan@zerohr.com", password: "demo-employee-2024" },
-            candidate: { email: "candidate@zerohr.com", password: "demo-candidate-2024" },
+            hr: { email: "rachel.lim@openhire.com", password: "demo-hr-2024" },
+            employee: { email: "alex.chan@openhire.com", password: "demo-employee-2024" },
+            candidate: { email: "candidate@openhire.com", password: "demo-candidate-2024" },
         }
 
         const creds = demoCredentials[role]

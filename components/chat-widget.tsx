@@ -210,7 +210,7 @@ export function ChatWidget({ isHrMode, isCandidateMode = false, currentUserIdOve
                 if (otherId === "demo-candidate-001") {
                     matchedContact = {
                         id: otherId,
-                        email: "candidate@zerohr.com",
+                        email: "candidate@openhire.com",
                         full_name: "Jordan Lee (Candidate)",
                         role: "candidate",
                         job_title: null,
@@ -233,7 +233,7 @@ export function ChatWidget({ isHrMode, isCandidateMode = false, currentUserIdOve
                         if (userDoc.exists()) {
                             matchedContact = { id: userDoc.id, ...userDoc.data() } as ChatUser
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
             console.log("Resolving chat window. OtherId:", otherId, "MatchedContact:", matchedContact);

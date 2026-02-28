@@ -1,5 +1,5 @@
 """
-RAG Policy Ingestion Script for ZeroHR
+RAG Policy Ingestion Script for OpenHire
 Loads policies from markdown files and Supabase DB, chunks them,
 and stores embeddings in ChromaDB for retrieval.
 

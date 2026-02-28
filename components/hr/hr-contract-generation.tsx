@@ -629,19 +629,19 @@ export function HrContractGeneration() {
     const body = encodeURIComponent(
       `Dear ${formData.name},
 
-We are pleased to inform you that your employment contract with ZeroHR is now ready.
+We are pleased to inform you that your employment contract with OpenHire is now ready.
 
 Please find attached your official employment contract for your review. Kindly read through the document carefully. If all details are in order, please sign the contract and return a scanned copy to us by ${deadlineStr}.
 
 Should you have any questions or require clarification on any part of the contract, feel free to contact us. We will be happy to assist.
 
-We look forward to welcoming you to ZeroHR and wish you every success in your new role.
+We look forward to welcoming you to OpenHire and wish you every success in your new role.
 
 Best regards,
 Sarah Chen
 HR Director
-ZeroHR
-hr@zerohr.com
+OpenHire
+hr@openhire.com
 +65 6123 4567`
     )
     window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${recipientEmail}&su=${subject}&body=${body}`, '_blank')
