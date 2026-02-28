@@ -9,4 +9,6 @@ websockets
 PyMuPDF
 requests
 python-multipart
+requests
+weasyprint
 edge-tts

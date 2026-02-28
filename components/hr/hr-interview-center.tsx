@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner"
 import { db } from "@/lib/firebase"
 import { collection, getDocs, query, where, doc, updateDoc, addDoc, limit } from "firebase/firestore"
+import { HrInterviewReport } from "./hr-interview-report"
 
 // ── Types ──
 type DecisionStatus = "pending" | "offer_sent" | "rejected"
@@ -93,6 +94,9 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     const [showOfferModal, setShowOfferModal] = useState(false)
     const [offerReport, setOfferReport] = useState<ResumeReport | null>(null)
     const [showPreview, setShowPreview] = useState(false)
+    const [interviewReport, setInterviewReport] = useState<any>(null)
+    const [showInterviewReport, setShowInterviewReport] = useState(false)
+    const [loadingInterviewReport, setLoadingInterviewReport] = useState<string | null>(null)
     const [offerForm, setOfferForm] = useState({
         position: "",
         salary: "8000",
@@ -139,6 +143,29 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         }
         fetchReports()
     }, [currentUser])
+
+    // ── Fetch interview report ──
+    const fetchInterviewReport = async (candidateId: string) => {
+        setLoadingInterviewReport(candidateId)
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+            // Try to find report by session ID pattern
+            const reportId = `report_${candidateId}`
+            const res = await fetch(`${backendUrl}/api/report/${reportId}/json`)
+            if (res.ok) {
+                const data = await res.json()
+                setInterviewReport(data)
+                setShowInterviewReport(true)
+            } else {
+                toast.error("Report Not Found", { description: "No interview report available for this candidate yet." })
+            }
+        } catch (err) {
+            console.error("Failed to fetch interview report:", err)
+            toast.error("Error", { description: "Failed to load interview report." })
+        } finally {
+            setLoadingInterviewReport(null)
+        }
+    }
 
     // ── Update decision status in Firebase ──
     async function updateDecisionStatus(reportId: string, status: DecisionStatus) {
@@ -596,7 +623,21 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                                 onClick={() => setSelectedReport(report)}
                                                             >
                                                                 <Eye className="h-3.5 w-3.5" />
-                                                                View
+                                                                Resume Report
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="gap-1.5 text-xs h-8 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                                onClick={() => fetchInterviewReport(report.id)}
+                                                                disabled={loadingInterviewReport === report.id}
+                                                            >
+                                                                {loadingInterviewReport === report.id ? (
+                                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <FileText className="h-3.5 w-3.5" />
+                                                                )}
+                                                                Interview Report
                                                             </Button>
                                                             {report.decision_status === "pending" && (
                                                                 <>
@@ -664,6 +705,21 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
 
             {/* Offer Modal */}
             {renderOfferModal()}
+
+            {/* Interview Report Overlay */}
+            {showInterviewReport && interviewReport && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <HrInterviewReport
+                            report={interviewReport}
+                            onClose={() => {
+                                setShowInterviewReport(false)
+                                setInterviewReport(null)
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     )
 
@@ -721,7 +777,7 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
             if (isEditingOffer && offerLetterId) {
                 // Update existing offer
                 await updateDoc(doc(db, "offer_letters", offerLetterId), payload)
-                
+
                 // Push notification
                 const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
                 notifs.push({
@@ -734,7 +790,7 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                     read: false
                 })
                 localStorage.setItem('notifications', JSON.stringify(notifs))
-                
+
                 toast.success("Offer Updated!", { description: `Updated offer for ${offerReport.candidate_name}` })
             } else {
                 // Send new offer
@@ -755,7 +811,7 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                     read: false
                 })
                 localStorage.setItem('notifications', JSON.stringify(notifs))
-                
+
                 toast.success("Offer Letter Sent!", { description: `Offer sent to ${offerReport.candidate_name} for ${offerForm.position}` })
             }
         } catch (err) {

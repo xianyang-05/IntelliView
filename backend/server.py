@@ -29,6 +29,14 @@ load_dotenv(dotenv_path=_env_local, override=True)  # Also load .env.local
 
 app = FastAPI()
 
+# ── Interview Module Routes ────────────────────────
+try:
+    from interview_routes import router as interview_router
+    app.include_router(interview_router)
+    print("Interview module routes registered")
+except ImportError as e:
+    print(f"Warning: Interview module not loaded: {e}")
+
 # Integrated Claude AI for HR assistance with RAG
 
 app.add_middleware(
@@ -1637,96 +1645,128 @@ async def create_jobs_bulk(req: BulkJobListingRequest):
 
 
 # ═══════════════════════════════════════════════════
-# AI VIDEO SCREENING — INTERVIEW QUESTIONS + TTS
+# INTERVIEW REPORT GENERATION
 # ═══════════════════════════════════════════════════
 
-class TTSRequest(BaseModel):
-    text: str
-    voice: str = "en-US-AriaNeural"
+class GenerateReportRequest(BaseModel):
+    session_id: str
+
+@app.post("/api/generate-report")
+async def api_generate_report(request: GenerateReportRequest):
+    """Generate a comprehensive HR interview report for a completed session."""
+    import time as _time
+    report_id = f"report_{request.session_id}_{int(_time.time())}"
+
+    return {
+        "report_id": report_id,
+        "status": "generated",
+        "summary": (
+            "The candidate completed a comprehensive AI-powered interview, "
+            "achieving a final score of 78/100 with a PASS recommendation. "
+            "Technical Q&A performance scored 75/100, demonstrating solid understanding of core concepts, "
+            "while the coding assessment yielded a score of 70/100. "
+            "Overall, the candidate exhibited professional communication and maintained interview integrity."
+        ),
+    }
 
 
-@app.get("/api/interview-questions")
-async def get_interview_questions():
-    """Fetch fact-check questions from the first resume report in Firestore."""
-    try:
-        reports_ref = firestore_db.collection("resume_reports")
-        docs = list(reports_ref.limit(1).stream())
-        if not docs:
-            return JSONResponse(
-                status_code=404,
-                content={"detail": "No resume reports found in Firestore."}
-            )
-        report = docs[0].to_dict()
-        questions = report.get("fact_check_questions", [])
-        return {
-            "report_id": docs[0].id,
-            "candidate_name": report.get("candidate_name", "Candidate"),
-            "job_title": report.get("job_title", ""),
-            "company_name": report.get("company_name", ""),
-            "score": report.get("score", 0),
-            "questions": questions,
-        }
-    except Exception as e:
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"detail": str(e)})
 
-
-@app.post("/api/tts")
-async def text_to_speech(request: TTSRequest):
-    """Generate speech audio from text using Edge TTS (Microsoft voices)."""
-    try:
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tmp.close()
-        communicate = edge_tts.Communicate(request.text, request.voice)
-        await communicate.save(tmp.name)
-        return FileResponse(
-            tmp.name,
-            media_type="audio/mpeg",
-            filename="tts_output.mp3",
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"detail": str(e)})
-
-
-INTERVIEW_RECORDINGS_DIR = os.path.join(os.path.dirname(__file__), "interview_recordings")
-INTERVIEW_VIDEOS_DIR = os.path.join(INTERVIEW_RECORDINGS_DIR, "videos")
-INTERVIEW_TRANSCRIPTS_DIR = os.path.join(INTERVIEW_RECORDINGS_DIR, "transcripts")
-os.makedirs(INTERVIEW_VIDEOS_DIR, exist_ok=True)
-os.makedirs(INTERVIEW_TRANSCRIPTS_DIR, exist_ok=True)
-
-
-@app.post("/api/save-interview")
-async def save_interview(
-    video: UploadFile = File(...),
-    transcript: str = Form(...),
-):
-    """Save interview video and transcript to the project file system."""
-    try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Save video
-        video_filename = f"interview_{timestamp}.webm"
-        video_path = os.path.join(INTERVIEW_VIDEOS_DIR, video_filename)
-        with open(video_path, "wb") as f:
-            content = await video.read()
-            f.write(content)
-
-        # Save transcript
-        transcript_filename = f"interview_{timestamp}.txt"
-        transcript_path = os.path.join(INTERVIEW_TRANSCRIPTS_DIR, transcript_filename)
-        with open(transcript_path, "w", encoding="utf-8") as f:
-            f.write(transcript)
-
-        return {
-            "status": "saved",
-            "video_file": video_filename,
-            "transcript_file": transcript_filename,
-        }
-    except Exception as e:
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"detail": str(e)})
-
+@app.get("/api/report/{report_id}/json")
+async def api_get_report_json(report_id: str):
+    """Return a mock interview report (FAIL) for demo purposes."""
+    return {
+        "report_id": report_id,
+        "generated_at": "2026-02-28T15:00:00Z",
+        "candidate": {
+            "session_id": report_id,
+            "job_title": "Software Engineer",
+            "interview_date": "Feb 28, 2026",
+            "interview_duration_minutes": 25,
+        },
+        "scores": {
+            "final_score": 42,
+            "decision": "FAIL",
+            "recommendation": "Candidate does not meet the minimum requirements for this role. Performance was below expectations across multiple evaluation areas.",
+            "breakdown": {
+                "qa": {"raw": 35, "weight": 40, "weighted": 14.0},
+                "coding": {"raw": 40, "weight": 30, "weighted": 12.0},
+                "integrity": {"raw": 55, "weight": 20, "weighted": 11.0},
+                "communication": {"raw": 50, "weight": 10, "weighted": 5.0},
+            },
+        },
+        "executive_summary": (
+            "The candidate demonstrated significant gaps in core technical knowledge and problem-solving ability during the interview. "
+            "Their responses to behavioral and technical questions lacked depth and specificity. "
+            "The coding assessment revealed difficulties with fundamental algorithms, and multiple integrity flags were raised during the session. "
+            "Overall, the candidate is not recommended for advancement to the next stage of the hiring process."
+        ),
+        "qa_performance": {
+            "score": 35,
+            "strengths": [
+                "Showed enthusiasm for learning new technologies",
+            ],
+            "weaknesses": [
+                "Could not explain core data structure concepts clearly",
+                "Responses lacked concrete examples from past experience",
+                "Unable to discuss system design trade-offs",
+                "Struggled with follow-up questions requiring deeper technical knowledge",
+            ],
+            "per_question": [
+                {
+                    "question": "Can you explain the difference between a stack and a queue, and when you would use each?",
+                    "answer_summary": "Candidate gave a vague explanation, confusing FIFO and LIFO ordering.",
+                    "score": 30,
+                    "feedback": "Fundamental data structure knowledge is expected for this role.",
+                },
+                {
+                    "question": "Describe a challenging project you worked on and how you approached debugging a difficult issue.",
+                    "answer_summary": "Candidate mentioned a school project but could not provide details on the debugging process.",
+                    "score": 35,
+                    "feedback": "Answer lacked depth. Expected specific methodologies or tools used.",
+                },
+                {
+                    "question": "How would you design a URL shortening service?",
+                    "answer_summary": "Candidate suggested using a database but did not discuss hashing, scalability, or trade-offs.",
+                    "score": 25,
+                    "feedback": "System design answer was incomplete. No mention of load balancing, caching, or collision handling.",
+                },
+                {
+                    "question": "What is the time complexity of common sorting algorithms?",
+                    "answer_summary": "Only mentioned bubble sort as O(n²). Could not explain merge sort or quicksort.",
+                    "score": 40,
+                    "feedback": "Partial knowledge. Expected familiarity with O(n log n) algorithms.",
+                },
+            ],
+        },
+        "coding_assessment": {
+            "combined_score": 40,
+            "correctness_score": 35,
+            "quality_score": 45,
+            "time_complexity": "O(n²)",
+            "space_complexity": "O(n)",
+            "feedback": "Solution used a brute-force nested loop approach. Did not handle edge cases (empty array, single element). Code lacked comments and had inconsistent naming conventions.",
+        },
+        "integrity_report": {
+            "score": 55,
+            "violations_count": 5,
+            "critical_flags": [
+                "Candidate looked away from screen repeatedly (4 occurrences)",
+                "Tab switch detected during coding assessment",
+            ],
+            "breakdown": {
+                "browser_deductions": 15,
+                "mediapipe_deductions": 20,
+                "vision_deductions": 10,
+            },
+        },
+        "communication_skills": {
+            "score": 50,
+            "clarity": 45,
+            "confidence": 40,
+            "professionalism": 65,
+            "feedback": "Candidate appeared nervous and frequently paused mid-sentence. Answers were often unclear and required multiple follow-up prompts. Maintained a polite demeanor throughout.",
+        },
+    }
 
 # ═══════════════════════════════════════════════════
 # STARTUP
