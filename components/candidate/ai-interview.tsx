@@ -587,49 +587,52 @@ export function AiInterview({
 
     // ── Auto-generate report when interview completes ──
     const [reportError, setReportError] = useState(false)
+    const reportAttemptedRef = useRef(false)
+
+    const doGenerateReport = useCallback(async () => {
+        if (reportGenerating || reportId) return
+        setReportGenerating(true)
+        setReportError(false)
+
+        try {
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+            const res = await fetch(`${BACKEND_URL}/api/generate-report`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: sessionId }),
+                signal: controller.signal,
+            })
+            clearTimeout(timeout)
+
+            if (!res.ok) {
+                console.error("Report generation failed:", res.status, res.statusText)
+                setReportError(true)
+                setReportGenerating(false)
+                return
+            }
+            const data = await res.json()
+            if (data.report_id) {
+                console.log("Report generated:", data.report_id)
+                setReportId(data.report_id)
+            } else {
+                setReportError(true)
+            }
+        } catch (err) {
+            console.error("Failed to generate report:", err)
+            setReportError(true)
+        } finally {
+            setReportGenerating(false)
+        }
+    }, [sessionId, reportGenerating, reportId])
 
     useEffect(() => {
-        if (phase !== "complete" || reportGenerating || reportId || reportError) return
-        setReportGenerating(true)
-
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 60000) // 60s timeout
-
-        const generateReport = async () => {
-            try {
-                const res = await fetch(`${BACKEND_URL}/api/generate-report`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ session_id: sessionId }),
-                    signal: controller.signal,
-                })
-                if (!res.ok) {
-                    console.error("Report generation failed:", res.status, res.statusText)
-                    setReportError(true)
-                    return
-                }
-                const data = await res.json()
-                if (data.report_id) {
-                    console.log("Report generated:", data.report_id)
-                    setReportId(data.report_id)
-                } else {
-                    setReportError(true)
-                }
-            } catch (err) {
-                console.error("Failed to generate report:", err)
-                setReportError(true)
-            } finally {
-                clearTimeout(timeout)
-                setReportGenerating(false)
-            }
+        if (phase === "complete" && !reportAttemptedRef.current && !reportId) {
+            reportAttemptedRef.current = true
+            doGenerateReport()
         }
-        generateReport()
-
-        return () => {
-            clearTimeout(timeout)
-            controller.abort()
-        }
-    }, [phase, sessionId, reportGenerating, reportId, reportError])
+    }, [phase, reportId, doGenerateReport])
 
     // ── Skip to coding (debug) ───────────────────────
     const skipToCoding = () => {
@@ -751,7 +754,7 @@ export function AiInterview({
                                     <AlertCircle className="h-4 w-4 text-red-400" />
                                     <span className="text-red-400">Report generation failed</span>
                                     <button
-                                        onClick={() => { setReportError(false); setReportGenerating(false) }}
+                                        onClick={() => doGenerateReport()}
                                         className="ml-2 text-xs text-blue-400 hover:text-blue-300 underline"
                                     >
                                         Retry
