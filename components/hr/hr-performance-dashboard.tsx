@@ -229,6 +229,52 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                 </Card>
             )}
 
+            {/* Charts (Moved to top) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <CardTitle>{aiResults ? "Role Performance" : "Department Performance"}</CardTitle>
+                        <CardDescription>Average scores vs Attendance</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsBarChart data={barData} barCategoryGap="30%">
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                                <YAxis type="number" domain={[0, 100]} hide />
+                                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
+                                <Bar dataKey="performance" name="Performance" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
+                                <Bar dataKey="attendance" name="Attendance" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
+                            </RechartsBarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-1">
+                    <CardHeader>
+                        <CardTitle>Workforce Distribution</CardTitle>
+                        <CardDescription>By Performance Tier</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px] flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                    <Cell fill="#10b981" />
+                                    <Cell fill="#3b82f6" />
+                                    <Cell fill="#f59e0b" />
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                    <div className="flex justify-center gap-4 text-xs text-muted-foreground mt-[-20px] pb-4">
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Raise</div>
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Neutral</div>
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div> At Risk</div>
+                    </div>
+                </Card>
+            </div>
+
             {/* AI Summary Cards — shown after review */}
             {aiResults && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -309,52 +355,6 @@ export function HrPerformanceDashboard({ onViewDetail }: HrPerformanceDashboardP
                     </Card>
                 </div>
             )}
-
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle>{aiResults ? "Role Performance" : "Department Performance"}</CardTitle>
-                        <CardDescription>Average scores vs Attendance</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <RechartsBarChart data={barData} barCategoryGap="30%">
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                                <YAxis type="number" domain={[0, 100]} hide />
-                                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
-                                <Bar dataKey="performance" name="Performance" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
-                                <Bar dataKey="attendance" name="Attendance" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
-                            </RechartsBarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                <Card className="lg:col-span-1">
-                    <CardHeader>
-                        <CardTitle>Workforce Distribution</CardTitle>
-                        <CardDescription>By Performance Tier</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px] flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                    <Cell fill="#10b981" />
-                                    <Cell fill="#3b82f6" />
-                                    <Cell fill="#f59e0b" />
-                                </Pie>
-                                <Tooltip />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                    <div className="flex justify-center gap-4 text-xs text-muted-foreground mt-[-20px] pb-4">
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Raise</div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Neutral</div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div> At Risk</div>
-                    </div>
-                </Card>
-            </div>
 
             {/* Employee Table — only after AI review */}
             {aiResults && (

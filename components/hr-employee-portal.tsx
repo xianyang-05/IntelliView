@@ -114,10 +114,9 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const hrNav = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "interviews", label: "Interview Center", icon: Users },
     { id: "budget-planning", label: "Budget Planning", icon: Briefcase },
     { id: "job-postings", label: "Job Postings", icon: Users },
-    { id: "interviews", label: "Interview Center", icon: Users },
-    { id: "contract-gen", label: "Contract Generation", icon: FileSignature },
     { id: "performance", label: "Performance", icon: TrendingUp },
     { id: "ai-decision-review", label: "AI Decision Review", icon: Brain },
   ]
