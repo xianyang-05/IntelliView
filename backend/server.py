@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 import anthropic
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 import tempfile
 import traceback
 
@@ -48,31 +49,35 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3")
 print(f"Ollama configured: {OLLAMA_BASE_URL} with model '{OLLAMA_MODEL}'")
 
 
-def _ollama_generate_sync(prompt: str, model: str, max_tokens: int) -> str:
+def _ollama_generate_sync(prompt: str, model: str, max_tokens: int, format: str = None) -> str:
     """Synchronous Ollama call — runs inside a thread via asyncio.to_thread."""
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0,       # deterministic = faster (no sampling)
+            "num_predict": max_tokens,
+            "num_ctx": 4096,        # smaller context window = faster
+        },
+        "keep_alive": "5m",         # keep model loaded between requests
+    }
+    if format:
+        payload["format"] = format
+        
     resp = requests.post(
         f"{OLLAMA_BASE_URL}/api/generate",
-        json={
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0,       # deterministic = faster (no sampling)
-                "num_predict": max_tokens,
-                "num_ctx": 4096,        # smaller context window = faster
-            },
-            "keep_alive": "5m",         # keep model loaded between requests
-        },
+        json=payload,
         timeout=180,
     )
     resp.raise_for_status()
     return resp.json()["response"]
 
 
-async def ollama_generate(prompt: str, model: str = None, max_tokens: int = 1024) -> str:
+async def ollama_generate(prompt: str, model: str = None, max_tokens: int = 1024, format: str = None) -> str:
     """Async wrapper — offloads the blocking HTTP call to a thread."""
     model = model or OLLAMA_MODEL
-    return await asyncio.to_thread(_ollama_generate_sync, prompt, model, max_tokens)
+    return await asyncio.to_thread(_ollama_generate_sync, prompt, model, max_tokens, format)
 
 # Reports directory
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
@@ -153,7 +158,7 @@ class _FirestoreQuery:
     def execute(self):
         q = self._ref
         for field, op, value in self._filters:
-            q = q.where(field, op, value)
+            q = q.where(filter=FieldFilter(field, op, value))
         if self._order_field:
             direction = firestore.Query.ASCENDING if self._order_asc else firestore.Query.DESCENDING
             q = q.order_by(self._order_field, direction=direction)
@@ -208,7 +213,7 @@ class _FirestoreQuery:
     def _execute_update(self):
         q = self._ref
         for field, op, value in self._filters:
-            q = q.where(field, op, value)
+            q = q.where(filter=FieldFilter(field, op, value))
         docs = list(q.stream())
         results = []
         for d in docs:
@@ -1264,8 +1269,18 @@ Criteria (score each 0-100, give 1-2 sentence explanation):
 5. Achievements (weight:10%) - quantifiable accomplishments
 6. Education (weight:5%) - academic background
 
-Respond ONLY with this JSON:
-{{"criteria":[{{"criterion":"Job Relevance","weight":30,"score":<n>,"explanation":"<text>"}},{{"criterion":"Hard Skills Match","weight":25,"score":<n>,"explanation":"<text>"}},{{"criterion":"Soft Skills","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Work Experience","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Achievements","weight":10,"score":<n>,"explanation":"<text>"}},{{"criterion":"Education","weight":5,"score":<n>,"explanation":"<text>"}}],"summary":"<3 sentence overall fit summary>"}}
+Respond ONLY with a valid JSON object matching this exact structure:
+{{
+  "criteria": [
+    {{ "criterion": "Job Relevance", "weight": 30, "score": 85, "explanation": "..." }},
+    {{ "criterion": "Hard Skills Match", "weight": 25, "score": 90, "explanation": "..." }},
+    {{ "criterion": "Soft Skills", "weight": 15, "score": 80, "explanation": "..." }},
+    {{ "criterion": "Work Experience", "weight": 15, "score": 75, "explanation": "..." }},
+    {{ "criterion": "Achievements", "weight": 10, "score": 60, "explanation": "..." }},
+    {{ "criterion": "Education", "weight": 5, "score": 100, "explanation": "..." }}
+  ],
+  "summary": "Overall fit summary..."
+}}
 
 RESUME:
 {resume_text}
@@ -1273,21 +1288,28 @@ RESUME:
 JOB DESCRIPTION:
 {job_text}
 
-JSON only:"""
+OUTPUT VALID JSON ONLY."""
 
         questions_prompt = f"""Generate exactly 5 interview questions to fact-check this resume. Focus on: verifiable claims, technical skills, achievements, project roles, employment gaps.
 
-Respond ONLY with a JSON array: ["Q1","Q2",...]
+Respond ONLY with a valid JSON array of strings matching this exact format:
+[
+  "Question 1?",
+  "Question 2?",
+  "Question 3?",
+  "Question 4?",
+  "Question 5?"
+]
 
 RESUME:
 {resume_text}
 
-JSON array only:"""
+OUTPUT VALID JSON ARRAY ONLY."""
 
         # Fire both LLM calls concurrently
         raw_analysis, raw_questions = await asyncio.gather(
-            ollama_generate(analysis_prompt, max_tokens=1024),
-            ollama_generate(questions_prompt, max_tokens=512),
+            ollama_generate(analysis_prompt, max_tokens=1024, format="json"),
+            ollama_generate(questions_prompt, max_tokens=512, format="json"),
         )
         raw_analysis = raw_analysis.strip()
         raw_questions = raw_questions.strip()
@@ -1547,9 +1569,8 @@ async def performance_review():
 async def manpower_planning_endpoint(req: CompanyProfilingRequest):
     """Calculate HR Manpower Gap Analysis based on selected positions and budget."""
     try:
-        # Fetch employees from Firestore
-        employees_ref = firestore_db.collection("employees").where("company_code", "==", req.company_code).stream()
-        all_employees = [doc.to_dict() for doc in employees_ref]
+        # Get employees from the request
+        all_employees = req.employees
 
         result = calculate_manpower_plan(req, all_employees)
         if "error" in result:
@@ -1581,7 +1602,7 @@ class BulkJobListingRequest(BaseModel):
 async def get_jobs(company_code: str):
     """Fetch job listings for a specific company."""
     try:
-        jobs_ref = firestore_db.collection("job_listings").where("company_code", "==", company_code).stream()
+        jobs_ref = firestore_db.collection("job_listings").where(filter=FieldFilter("company_code", "==", company_code)).stream()
         
         jobs = []
         for doc in jobs_ref:

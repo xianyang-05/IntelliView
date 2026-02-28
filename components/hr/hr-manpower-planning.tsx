@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Loader2, DollarSign, Users, Briefcase, TrendingUp, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react"
 import { db } from "@/lib/firebase"
-import { collection, doc, writeBatch } from "firebase/firestore"
+import { collection, doc, writeBatch, query, where, getDocs } from "firebase/firestore"
 
 const PREDEFINED_ROLES = ["Engineer", "Accountant", "HR", "Marketing", "Sales", "Operations"]
 const INDUSTRIES = ["Software Product", "Agency/Services", "E-commerce", "Fintech", "Healthcare", "Other"]
@@ -51,6 +51,13 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
     setPostSuccess(false)
 
     try {
+      const companyCode = currentUser?.companyId || "ZHR-001"
+      
+      // Fetch employees from Firestore via client SDK
+      const q = query(collection(db, "employees"), where("company_code", "==", companyCode))
+      const querySnapshot = await getDocs(q)
+      const fetchedEmployees = querySnapshot.docs.map(doc => doc.data())
+
       const response = await fetch("/api/hr/manpower-planning", {
         method: "POST",
         headers: {
@@ -63,7 +70,8 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
           company_description: companyDescription,
           selected_positions: selectedRoles,
           company_name: "ZeroHR Demo Corp",
-          company_code: currentUser?.companyId || "ZHR-001"
+          company_code: companyCode,
+          employees: fetchedEmployees
         }),
       })
 

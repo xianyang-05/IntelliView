@@ -10,6 +10,7 @@ class CompanyProfilingRequest(BaseModel):
     selected_positions: List[str]
     company_name: str
     company_code: str
+    employees: List[Dict[str, Any]] = []
 
 # Step 1: Ratio Calculation
 DEFAULT_ROLES = ["Engineer", "Accountant", "HR", "Marketing", "Sales", "Operations"]

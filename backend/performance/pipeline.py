@@ -14,14 +14,14 @@ def run_pipeline() -> list[dict]:
     Run the full performance review pipeline.
     Returns a list of employee results with scores, categories, and optional LLM reviews.
     """
-    print("Performance pipeline: Step 1 — Scoring all employees...")
+    print("Performance pipeline: Step 1 - Scoring all employees...")
     scored = calculate_scores(EMPLOYEES)
 
-    print("Performance pipeline: Step 2 — Detecting edge cases...")
+    print("Performance pipeline: Step 2 - Detecting edge cases...")
     edge_flags = detect_edge_cases(scored)
-    print(f"   → {len(edge_flags)} employees flagged for LLM review")
+    print(f"   -> {len(edge_flags)} employees flagged for LLM review")
 
-    print("Performance pipeline: Step 3 — LLM reviewing flagged employees...")
+    print("Performance pipeline: Step 3 - LLM reviewing flagged employees...")
 
     results = []
     for row in scored:
@@ -49,7 +49,7 @@ def run_pipeline() -> list[dict]:
         }
 
         if is_edge:
-            print(f"   → LLM reviewing: {row['name']}...")
+            print(f"   -> LLM reviewing: {row['name']}...")
             review = review_employee(row, edge_flags[emp_id])
             result["llm_review"] = review
             result["final_category"] = review.get("final_category", row["category"])

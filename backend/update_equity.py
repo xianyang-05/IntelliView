@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 load_dotenv()
 
@@ -19,7 +20,7 @@ db = firestore.client()
 email = "alex.chen@zerohr.com"
 
 # 1. Get Employee ID
-docs = db.collection("employees").where("email", "==", email).limit(1).stream()
+docs = db.collection("employees").where(filter=FieldFilter("email", "==", email)).limit(1).stream()
 employee = None
 for d in docs:
     employee = d.to_dict()
@@ -33,7 +34,7 @@ user_id = employee['id']
 print(f"User ID: {user_id}")
 
 # 2. Get Equity
-eq_docs = db.collection("equity_grants").where("employee_id", "==", user_id).stream()
+eq_docs = db.collection("equity_grants").where(filter=FieldFilter("employee_id", "==", user_id)).stream()
 grants = []
 for d in eq_docs:
     grant = d.to_dict()

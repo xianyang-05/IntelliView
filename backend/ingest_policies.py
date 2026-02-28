@@ -101,6 +101,7 @@ def load_db_policies() -> list[dict]:
     """Load policies from Firestore hr_policies collection."""
     import firebase_admin
     from firebase_admin import credentials, firestore
+    from google.cloud.firestore_v1.base_query import FieldFilter
 
     _sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "firebase-service-account.json")
     if not os.path.exists(_sa_path):
@@ -116,7 +117,7 @@ def load_db_policies() -> list[dict]:
 
     try:
         db = firestore.client()
-        docs = db.collection("hr_policies").where("is_active", "==", True).stream()
+        docs = db.collection("hr_policies").where(filter=FieldFilter("is_active", "==", True)).stream()
 
         policies = []
         for d in docs:
