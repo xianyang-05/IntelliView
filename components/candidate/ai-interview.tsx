@@ -494,8 +494,15 @@ export function AiInterview({
     }
 
     // ── Submit Code ──────────────────────────────────
+    const codingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
     const submitCode = () => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            // If WebSocket is not open, go directly to complete
+            setCodingSubmitted(true)
+            setPhase("complete")
+            return
+        }
         setCodingSubmitted(true)
 
         wsRef.current.send(JSON.stringify({
@@ -509,7 +516,28 @@ export function AiInterview({
             text: "Code submitted successfully.",
             timestamp: Date.now(),
         }])
+
+        // Safety fallback: if the backend/Gemini doesn't send phase_change
+        // within 15 seconds, auto-transition to complete phase
+        if (codingTimeoutRef.current) clearTimeout(codingTimeoutRef.current)
+        codingTimeoutRef.current = setTimeout(() => {
+            setPhase((currentPhase) => {
+                if (currentPhase === "coding") {
+                    console.warn("[Interview] Fallback: auto-transitioning to complete phase after timeout")
+                    return "complete"
+                }
+                return currentPhase
+            })
+        }, 15000)
     }
+
+    // Clear the coding timeout if phase changes naturally
+    useEffect(() => {
+        if (phase === "complete" && codingTimeoutRef.current) {
+            clearTimeout(codingTimeoutRef.current)
+            codingTimeoutRef.current = null
+        }
+    }, [phase])
 
     // ── Toggle mic ───────────────────────────────────
     const toggleMic = () => {

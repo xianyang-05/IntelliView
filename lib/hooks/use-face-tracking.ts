@@ -267,8 +267,9 @@ export function useFaceTracking({ enabled, videoRef, onViolation }: FaceTracking
                 let result: FaceLandmarkerResult | null = null;
                 try {
                     result = landmarker.detectForVideo(video, timestamp);
-                } catch {
+                } catch (e) {
                     // MediaPipe can throw if video state changes between check and call
+                    console.warn('[FaceTracking] MediaPipe detectForVideo error:', e);
                     rafRef.current = requestAnimationFrame(detect);
                     return;
                 }

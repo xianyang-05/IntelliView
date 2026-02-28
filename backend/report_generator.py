@@ -122,7 +122,7 @@ Return ONLY the summary text, no formatting."""
 
     try:
         model = genai.GenerativeModel(REPORT_MODEL)
-        response = model.generate_content(
+        response = await model.generate_content_async(
             prompt,
             generation_config=genai.GenerationConfig(
                 temperature=0.3,
