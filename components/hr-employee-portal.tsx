@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { signIn, signOut } from "next-auth/react"
-import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase, Mail } from "lucide-react"
+import { signOut, signIn } from "next-auth/react"
+import { Building2, User, Home, FileText, MessageSquare, Send, AlertCircle, BarChart3, FileSignature, BookOpen, TrendingUp, Calendar, Users, Brain, ChevronDown, Eye, Briefcase, Video, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { EmployeeHome } from "./employee/employee-home"
@@ -21,6 +21,7 @@ import { EmployeeProfile } from "./employee/employee-profile"
 import { HrInterviewCenter } from "./hr/hr-interview-center"
 import { CandidateHome } from "./candidate/candidate-home"
 import { JobBoard } from "./candidate/job-board"
+import { AiInterview } from "./candidate/ai-interview"
 import { CandidateOffers } from "./candidate/candidate-offers"
 import { ChatWidget } from "./chat-widget"
 import { Bell, LogOut, Settings, CircleUser, X } from "lucide-react"
@@ -123,6 +124,7 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
 
   const candidateNav = [
     { id: "job-board", label: "Job Board", icon: Briefcase },
+    { id: "ai-interview", label: "AI Interview", icon: Video },
     { id: "my-offers", label: "My Offers", icon: Mail },
   ]
 
@@ -314,6 +316,8 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
           return <JobBoard onNavigate={handleNavigate} />
         case "candidate-home":
           return <CandidateHome selectedJob={navPayload} currentUser={currentUser} />
+        case "ai-interview":
+          return <AiInterview onEnd={() => handleNavigate("job-board")} />
         case "my-offers":
           return <CandidateOffers currentUser={currentUser} />
         default:
@@ -667,10 +671,10 @@ export function HrEmployeePortal({ currentUser }: { currentUser: any }) {
         </div>
 
         {/* Real-Time Chat Widget */}
-        <ChatWidget 
-          isHrMode={portalMode === "hr"} 
+        <ChatWidget
+          isHrMode={portalMode === "hr"}
           isCandidateMode={portalMode === "candidate"}
-          currentUserIdOverride={portalMode === "candidate" ? (currentUser?.id || currentUser?.uid) : undefined} 
+          currentUserIdOverride={portalMode === "candidate" ? (currentUser?.id || currentUser?.uid) : undefined}
         />
       </main>
     </div>
