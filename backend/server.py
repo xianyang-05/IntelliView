@@ -3,10 +3,12 @@ import sys
 import subprocess
 import json
 import re
+import asyncio
 from datetime import datetime
 import chromadb
 import fitz  # PyMuPDF
-import google.generativeai as genai
+import edge_tts
+import requests
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -45,15 +47,37 @@ app.add_middleware(
 # Claude client
 claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-# Gemini client
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
-    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-    print(f"Gemini API configured")
-else:
-    gemini_model = None
-    print("Warning: GEMINI_API_KEY not set — resume analyzer will not work")
+# Ollama configuration (local LLM for resume analysis)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3")
+print(f"Ollama configured: {OLLAMA_BASE_URL} with model '{OLLAMA_MODEL}'")
+
+
+def _ollama_generate_sync(prompt: str, model: str, max_tokens: int) -> str:
+    """Synchronous Ollama call — runs inside a thread via asyncio.to_thread."""
+    resp = requests.post(
+        f"{OLLAMA_BASE_URL}/api/generate",
+        json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0,       # deterministic = faster (no sampling)
+                "num_predict": max_tokens,
+                "num_ctx": 4096,        # smaller context window = faster
+            },
+            "keep_alive": "5m",         # keep model loaded between requests
+        },
+        timeout=180,
+    )
+    resp.raise_for_status()
+    return resp.json()["response"]
+
+
+async def ollama_generate(prompt: str, model: str = None, max_tokens: int = 1024) -> str:
+    """Async wrapper — offloads the blocking HTTP call to a thread."""
+    model = model or OLLAMA_MODEL
+    return await asyncio.to_thread(_ollama_generate_sync, prompt, model, max_tokens)
 
 # Reports directory
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), "reports")
@@ -1202,7 +1226,7 @@ async def analyze_resume(
     job_title: str = Form(""),
     candidate_name: str = Form(""),
 ):
-    """Analyze a resume PDF against a job description using Claude AI."""
+    """Analyze a resume PDF against a job description using Ollama (Gemma)."""
     print(f"Resume analyzer: received '{resume.filename}' ({resume.size} bytes)")
 
     try:
@@ -1229,134 +1253,208 @@ async def analyze_resume(
 
         print(f"   Extracted {len(extracted_text)} characters from {num_pages} pages")
 
-        # ── STEP 2: Analyze with Claude ──
-        print("Step 2: Analyzing resume with Claude...")
+        # ── STEP 2 & 3: Run analysis + questions in PARALLEL ──
+        print(f"Step 2-3: Analyzing resume + generating questions in parallel with Ollama ({OLLAMA_MODEL})...")
 
-        analysis_prompt = f"""You are an expert HR resume analyst. Analyze the following resume against the provided job description.
+        resume_text = extracted_text[:4000]   # trimmed for speed
+        job_text = job_description[:1500]
 
-Evaluate the resume based on these 6 criteria, listed in descending order of importance:
+        analysis_prompt = f"""You are an HR resume analyst. Score this resume against the job description.
 
-1. **Job Relevance** (Weight: 30%) — How well the resume aligns with the specific job description requirements
-2. **Hard Skills Match** (Weight: 25%) — Technical skills, tools, technologies, and certifications matching the job requirements
-3. **Soft Skills** (Weight: 15%) — Communication, leadership, teamwork, problem-solving indicators
-4. **Work Experience** (Weight: 15%) — Relevance, depth, and progression of professional experience
-5. **Achievements** (Weight: 10%) — Quantifiable accomplishments, awards, and measurable impact
-6. **Education** (Weight: 5%) — Academic background, relevant coursework, and qualifications
+Criteria (score each 0-100, give 1-2 sentence explanation):
+1. Job Relevance (weight:30%) - alignment with job requirements
+2. Hard Skills Match (weight:25%) - technical skills match
+3. Soft Skills (weight:15%) - communication, leadership indicators
+4. Work Experience (weight:15%) - relevance and depth
+5. Achievements (weight:10%) - quantifiable accomplishments
+6. Education (weight:5%) - academic background
 
-For each criterion, provide:
-- A score from 0 to 100
-- A brief explanation (2-3 sentences) justifying the score
+Respond ONLY with this JSON:
+{{"criteria":[{{"criterion":"Job Relevance","weight":30,"score":<n>,"explanation":"<text>"}},{{"criterion":"Hard Skills Match","weight":25,"score":<n>,"explanation":"<text>"}},{{"criterion":"Soft Skills","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Work Experience","weight":15,"score":<n>,"explanation":"<text>"}},{{"criterion":"Achievements","weight":10,"score":<n>,"explanation":"<text>"}},{{"criterion":"Education","weight":5,"score":<n>,"explanation":"<text>"}}],"summary":"<3 sentence overall fit summary>"}}
 
-Also provide a short overall summary (3-4 sentences) of the candidate's fit.
+RESUME:
+{resume_text}
 
-Return your response as valid JSON in this exact format:
-{{
-  "criteria": [
-    {{
-      "criterion": "Job Relevance",
-      "weight": 30,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Hard Skills Match",
-      "weight": 25,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Soft Skills",
-      "weight": 15,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Work Experience",
-      "weight": 15,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Achievements",
-      "weight": 10,
-      "score": <number>,
-      "explanation": "<text>"
-    }},
-    {{
-      "criterion": "Education",
-      "weight": 5,
-      "score": <number>,
-      "explanation": "<text>"
-    }}
-  ],
-  "summary": "<overall summary text>"
-}}
+JOB DESCRIPTION:
+{job_text}
 
---- RESUME TEXT ---
-{extracted_text[:8000]}
+JSON only:"""
 
---- JOB DESCRIPTION ---
-{job_description[:3000]}
+        questions_prompt = f"""Generate exactly 5 interview questions to fact-check this resume. Focus on: verifiable claims, technical skills, achievements, project roles, employment gaps.
 
-Respond with ONLY the JSON object, no extra text."""
+Respond ONLY with a JSON array: ["Q1","Q2",...]
 
-        analysis_response = claude_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": analysis_prompt}],
+RESUME:
+{resume_text}
+
+JSON array only:"""
+
+        # Fire both LLM calls concurrently
+        raw_analysis, raw_questions = await asyncio.gather(
+            ollama_generate(analysis_prompt, max_tokens=1024),
+            ollama_generate(questions_prompt, max_tokens=512),
         )
-        raw_analysis = analysis_response.content[0].text.strip()
+        raw_analysis = raw_analysis.strip()
+        raw_questions = raw_questions.strip()
 
-        # Parse JSON from Claude response
-        json_match = re.search(r'(\{.*\})', raw_analysis, re.DOTALL)
-        if json_match:
-            analysis_data = json.loads(json_match.group(1))
-        else:
-            analysis_data = json.loads(raw_analysis)
+        def _clean_llm_json(text: str) -> str:
+            """Clean common LLM JSON issues: markdown fences, trailing commas, etc."""
+            # Strip markdown code fences
+            text = re.sub(r'^```(?:json)?\s*\n?', '', text, flags=re.MULTILINE)
+            text = re.sub(r'\n?```\s*$', '', text, flags=re.MULTILINE)
+            text = text.strip()
+            # Remove trailing commas before } or ]
+            text = re.sub(r',\s*([}\]])', r'\1', text)
+            return text
+
+        def _repair_json_string(text: str) -> str:
+            """Aggressively repair broken JSON by escaping problematic characters inside string values."""
+            # Replace literal control characters that break JSON
+            text = text.replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
+            text = text.replace('\t', '\\t')
+
+            # Fix unescaped quotes inside JSON string values using a state machine
+            result = []
+            i = 0
+            in_string = False
+            prev_was_backslash = False
+
+            while i < len(text):
+                ch = text[i]
+
+                if prev_was_backslash:
+                    result.append(ch)
+                    prev_was_backslash = False
+                    i += 1
+                    continue
+
+                if ch == '\\':
+                    result.append(ch)
+                    prev_was_backslash = True
+                    i += 1
+                    continue
+
+                if ch == '"':
+                    if not in_string:
+                        in_string = True
+                        result.append(ch)
+                    else:
+                        # Check if this quote is a legitimate string terminator
+                        # Look ahead: if next non-whitespace is : , } ] or end — it's legit
+                        rest = text[i+1:].lstrip()
+                        if not rest or rest[0] in ':,}]':
+                            in_string = False
+                            result.append(ch)
+                        else:
+                            # It's an unescaped quote inside a string — escape it
+                            result.append('\\"')
+                    i += 1
+                    continue
+
+                result.append(ch)
+                i += 1
+
+            return ''.join(result)
+
+        def _extract_and_parse_object(text: str) -> dict:
+            """Extract JSON object from text, trying multiple strategies."""
+            cleaned = _clean_llm_json(text)
+
+            # Strategy 1: Direct parse
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+
+            # Strategy 2: Nested brace matching
+            depth = 0
+            start = None
+            for i, ch in enumerate(cleaned):
+                if ch == '{':
+                    if depth == 0:
+                        start = i
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0 and start is not None:
+                        candidate = cleaned[start:i+1]
+                        try:
+                            return json.loads(candidate)
+                        except json.JSONDecodeError:
+                            # Strategy 3: Repair the extracted candidate
+                            try:
+                                repaired = _repair_json_string(candidate)
+                                return json.loads(repaired)
+                            except json.JSONDecodeError:
+                                pass
+                        start = None
+
+            # Strategy 4: Greedy regex + repair
+            m = re.search(r'(\{.*\})', cleaned, re.DOTALL)
+            if m:
+                candidate = m.group(1)
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    repaired = _repair_json_string(candidate)
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        pass
+
+            # Strategy 5: Repair entire cleaned text
+            repaired = _repair_json_string(cleaned)
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+
+            raise json.JSONDecodeError("No valid JSON object found after all repair strategies", text, 0)
+
+        def _extract_and_parse_array(raw: str) -> list:
+            """Robustly extract a JSON array from LLM output."""
+            cleaned = _clean_llm_json(raw)
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+            m = re.search(r'(\[.*\])', cleaned, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group(1))
+                except json.JSONDecodeError:
+                    repaired = _repair_json_string(m.group(1))
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        pass
+            raise json.JSONDecodeError("No valid JSON array found", raw, 0)
+
+        # Log raw AI output for debugging
+        try:
+            debug_path = os.path.join(REPORTS_DIR, "last_raw_analysis.txt")
+            with open(debug_path, "w", encoding="utf-8") as df:
+                df.write("=== RAW ANALYSIS ===\n")
+                df.write(raw_analysis)
+                df.write("\n\n=== RAW QUESTIONS ===\n")
+                df.write(raw_questions)
+        except Exception:
+            pass
+
+        # Parse analysis JSON
+        analysis_data = _extract_and_parse_object(raw_analysis)
 
         criteria = analysis_data.get("criteria", [])
         summary = analysis_data.get("summary", "")
 
-        # Calculate weighted total
         weighted_total = sum(
             (c["score"] * c["weight"] / 100) for c in criteria
         )
 
         print(f"   Analysis complete. Weighted score: {weighted_total:.1f}/100")
 
-        # ── STEP 3: Generate fact-checking questions ──
-        print("Step 3: Generating fact-checking questions...")
-
-        questions_prompt = f"""Based on the following resume content, generate 5 to 8 personalized interview questions designed to fact-check and verify the claims made in the resume.
-
-Focus on:
-- Verifiable claims (specific dates, numbers, metrics, percentages)
-- Technical skills mentioned (ask them to elaborate or solve a related problem)
-- Stated achievements (ask for specific details or evidence)
-- Project involvement (ask about their specific contribution and role)
-- Employment transitions (ask about reasons and timelines)
-
-Return your response as a JSON array of strings:
-["Question 1", "Question 2", ...]
-
---- RESUME TEXT ---
-{extracted_text[:6000]}
-
-Respond with ONLY the JSON array, no extra text."""
-
-        questions_response = claude_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": questions_prompt}],
-        )
-        raw_questions = questions_response.content[0].text.strip()
-
-        # Parse JSON questions
-        json_arr_match = re.search(r'(\[.*\])', raw_questions, re.DOTALL)
-        if json_arr_match:
-            fact_check_questions = json.loads(json_arr_match.group(1))
-        else:
-            fact_check_questions = json.loads(raw_questions)
+        # Parse questions JSON
+        fact_check_questions = _extract_and_parse_array(raw_questions)
 
         print(f"   Generated {len(fact_check_questions)} fact-checking questions")
 
@@ -1399,25 +1497,7 @@ Respond with ONLY the JSON array, no extra text."""
 
         print(f"   Report saved to {report_path}")
 
-        # ── STEP 4: Save structured report to Firestore ──
-        report_id = None
-        try:
-            report_data = {
-                "company_name": company_name or "Unknown",
-                "company_code": company_code or "",
-                "job_title": job_title or "Unknown",
-                "candidate_name": candidate_name or "Unknown",
-                "score": round(weighted_total, 1),
-                "summary": summary,
-                "criteria": criteria,
-                "fact_check_questions": fact_check_questions,
-                "created_at": datetime.utcnow().isoformat(),
-            }
-            _, doc_ref = firestore_db.collection("resume_reports").add(report_data)
-            report_id = doc_ref.id
-            print(f"   Firestore report saved: {report_id}")
-        except Exception as fb_err:
-            print(f"   Firestore save error: {fb_err}")
+        # Note: Firestore save is handled by the frontend to avoid duplicates
 
         return {
             "criteria": criteria,
@@ -1425,7 +1505,6 @@ Respond with ONLY the JSON array, no extra text."""
             "summary": summary,
             "fact_check_questions": fact_check_questions,
             "report_path": report_filename,
-            "report_id": report_id,
         }
 
     except json.JSONDecodeError as e:
@@ -1573,6 +1652,96 @@ async def api_get_report_json(report_id: str):
         return JSONResponse(status_code=404, content={"detail": "Report not found"})
     except Exception as e:
         print(f"Report fetch error: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+# AI VIDEO SCREENING — INTERVIEW QUESTIONS + TTS
+# ═══════════════════════════════════════════════════
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "en-US-AriaNeural"
+
+
+@app.get("/api/interview-questions")
+async def get_interview_questions():
+    """Fetch fact-check questions from the first resume report in Firestore."""
+    try:
+        reports_ref = firestore_db.collection("resume_reports")
+        docs = list(reports_ref.limit(1).stream())
+        if not docs:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "No resume reports found in Firestore."}
+            )
+        report = docs[0].to_dict()
+        questions = report.get("fact_check_questions", [])
+        return {
+            "report_id": docs[0].id,
+            "candidate_name": report.get("candidate_name", "Candidate"),
+            "job_title": report.get("job_title", ""),
+            "company_name": report.get("company_name", ""),
+            "score": report.get("score", 0),
+            "questions": questions,
+        }
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@app.post("/api/tts")
+async def text_to_speech(request: TTSRequest):
+    """Generate speech audio from text using Edge TTS (Microsoft voices)."""
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tmp.close()
+        communicate = edge_tts.Communicate(request.text, request.voice)
+        await communicate.save(tmp.name)
+        return FileResponse(
+            tmp.name,
+            media_type="audio/mpeg",
+            filename="tts_output.mp3",
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+INTERVIEW_RECORDINGS_DIR = os.path.join(os.path.dirname(__file__), "interview_recordings")
+INTERVIEW_VIDEOS_DIR = os.path.join(INTERVIEW_RECORDINGS_DIR, "videos")
+INTERVIEW_TRANSCRIPTS_DIR = os.path.join(INTERVIEW_RECORDINGS_DIR, "transcripts")
+os.makedirs(INTERVIEW_VIDEOS_DIR, exist_ok=True)
+os.makedirs(INTERVIEW_TRANSCRIPTS_DIR, exist_ok=True)
+
+
+@app.post("/api/save-interview")
+async def save_interview(
+    video: UploadFile = File(...),
+    transcript: str = Form(...),
+):
+    """Save interview video and transcript to the project file system."""
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Save video
+        video_filename = f"interview_{timestamp}.webm"
+        video_path = os.path.join(INTERVIEW_VIDEOS_DIR, video_filename)
+        with open(video_path, "wb") as f:
+            content = await video.read()
+            f.write(content)
+
+        # Save transcript
+        transcript_filename = f"interview_{timestamp}.txt"
+        transcript_path = os.path.join(INTERVIEW_TRANSCRIPTS_DIR, transcript_filename)
+        with open(transcript_path, "w", encoding="utf-8") as f:
+            f.write(transcript)
+
+        return {
+            "status": "saved",
+            "video_file": video_filename,
+            "transcript_file": transcript_filename,
+        }
+    except Exception as e:
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 

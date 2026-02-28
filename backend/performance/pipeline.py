@@ -6,7 +6,7 @@ Orchestrates: mock data → scoring → edge detection → LLM review → merged
 from .mock_data import EMPLOYEES
 from .scorer import calculate_scores
 from .edge_detector import detect_edge_cases
-from .llm_reviewer import get_claude_client, review_employee
+from .llm_reviewer import review_employee
 
 
 def run_pipeline() -> list[dict]:
@@ -22,12 +22,6 @@ def run_pipeline() -> list[dict]:
     print(f"   → {len(edge_flags)} employees flagged for LLM review")
 
     print("Performance pipeline: Step 3 — LLM reviewing flagged employees...")
-    claude_client = None
-    if edge_flags:
-        try:
-            claude_client = get_claude_client()
-        except Exception as e:
-            print(f"   Could not initialize Claude client: {e}")
 
     results = []
     for row in scored:
@@ -54,9 +48,9 @@ def run_pipeline() -> list[dict]:
             "final_category": row["category"],
         }
 
-        if is_edge and claude_client:
+        if is_edge:
             print(f"   → LLM reviewing: {row['name']}...")
-            review = review_employee(claude_client, row, edge_flags[emp_id])
+            review = review_employee(row, edge_flags[emp_id])
             result["llm_review"] = review
             result["final_category"] = review.get("final_category", row["category"])
 

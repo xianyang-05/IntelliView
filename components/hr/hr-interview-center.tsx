@@ -5,7 +5,8 @@ import {
     Users, Search, FileText, Eye, Send, XCircle,
     ChevronRight, Clock, CheckCircle, AlertCircle, Sparkles,
     Briefcase, MapPin, ArrowLeft, X,
-    Filter, Award, TrendingUp, Loader2, Building2, Target, Star
+    Filter, Award, TrendingUp, Loader2, Building2, Target, Star,
+    ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, PenLine
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,12 +23,18 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select"
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, updateDoc, addDoc, limit } from "firebase/firestore"
 import { HrInterviewReport } from "./hr-interview-report"
 
 // ── Types ──
+type DecisionStatus = "pending" | "offer_sent" | "rejected"
+
 interface ResumeReport {
     id: string
     company_name: string
@@ -40,6 +47,7 @@ interface ResumeReport {
     criteria: { criterion: string; weight: number; score: number; explanation: string }[]
     fact_check_questions: string[]
     created_at: string
+    decision_status?: DecisionStatus
 }
 
 // ── Score badge color ──
@@ -55,6 +63,18 @@ function getScoreLabel(score: number) {
     return "Below Average"
 }
 
+function getStatusBadge(status: DecisionStatus) {
+    if (status === "offer_sent") return "bg-emerald-100 text-emerald-700 border-emerald-200"
+    if (status === "rejected") return "bg-red-100 text-red-700 border-red-200"
+    return "bg-amber-100 text-amber-700 border-amber-200"
+}
+
+function getStatusLabel(status: DecisionStatus) {
+    if (status === "offer_sent") return "Offer Sent"
+    if (status === "rejected") return "Rejected"
+    return "Pending"
+}
+
 // ═══════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════
@@ -63,7 +83,14 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedReport, setSelectedReport] = useState<ResumeReport | null>(null)
+
+    // Sidebar: decision status filter
+    const [statusFilter, setStatusFilter] = useState<"all" | DecisionStatus>("all")
+
+    // Table-level: score filter + sort
     const [scoreFilter, setScoreFilter] = useState<string>("all")
+    const [scoreSortOrder, setScoreSortOrder] = useState<"none" | "asc" | "desc">("none")
+
     const [showOfferModal, setShowOfferModal] = useState(false)
     const [offerReport, setOfferReport] = useState<ResumeReport | null>(null)
     const [showPreview, setShowPreview] = useState(false)
@@ -74,10 +101,13 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         position: "",
         salary: "8000",
         startDate: "2026-03-15",
-        benefits: "Medical, Dental, Vision, EPF, SOCSO, Annual Leave (14 days)",
+        benefits: "Medical, Dental, Vision, EPF, SOCSO",
         contractType: "permanent",
         probation: "3",
+        annualLeave: "14",
     })
+    const [isEditingOffer, setIsEditingOffer] = useState(false)
+    const [offerLetterId, setOfferLetterId] = useState<string | null>(null)
 
     // ── Fetch resume reports from Firestore ──
     useEffect(() => {
@@ -99,6 +129,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                     id: doc.id,
                     ...doc.data(),
                 })) as ResumeReport[]
+
+                // Default status to pending if not set
+                data.forEach(r => {
+                    if (!r.decision_status) r.decision_status = "pending"
+                })
 
                 // Sort newest first
                 data.sort(
@@ -137,6 +172,16 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         }
     }
 
+    // ── Update decision status in Firebase ──
+    async function updateDecisionStatus(reportId: string, status: DecisionStatus) {
+        try {
+            const docRef = doc(db, "resume_reports", reportId)
+            await updateDoc(docRef, { decision_status: status })
+        } catch (err) {
+            console.error("Failed to update decision status:", err)
+        }
+    }
+
     // ── Filter logic ──
     const filteredReports = reports.filter((r) => {
         const matchesSearch =
@@ -144,19 +189,37 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
             r.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             r.job_title.toLowerCase().includes(searchQuery.toLowerCase())
 
+        const matchesStatus =
+            statusFilter === "all" || r.decision_status === statusFilter
+
         const matchesScore =
             scoreFilter === "all" ||
             (scoreFilter === "strong" && r.score >= 80) ||
             (scoreFilter === "average" && r.score >= 60 && r.score < 80) ||
             (scoreFilter === "below" && r.score < 60)
 
-        return matchesSearch && matchesScore
+        return matchesSearch && matchesStatus && matchesScore
     })
 
+    // ── Sort by score ──
+    const sortedReports = [...filteredReports]
+    if (scoreSortOrder === "asc") {
+        sortedReports.sort((a, b) => a.score - b.score)
+    } else if (scoreSortOrder === "desc") {
+        sortedReports.sort((a, b) => b.score - a.score)
+    }
+
     // ── Stat counts ──
-    const strongCount = reports.filter((r) => r.score >= 80).length
-    const averageCount = reports.filter((r) => r.score >= 60 && r.score < 80).length
-    const belowCount = reports.filter((r) => r.score < 60).length
+    const pendingCount = reports.filter((r) => r.decision_status === "pending").length
+    const offerSentCount = reports.filter((r) => r.decision_status === "offer_sent").length
+    const rejectedCount = reports.filter((r) => r.decision_status === "rejected").length
+
+    // ── Cycle sort order ──
+    function cycleSortOrder() {
+        if (scoreSortOrder === "none") setScoreSortOrder("desc")
+        else if (scoreSortOrder === "desc") setScoreSortOrder("asc")
+        else setScoreSortOrder("none")
+    }
 
     // ══════ REPORT DETAIL PANEL ══════
     if (selectedReport) {
@@ -182,29 +245,56 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                         <Badge className={`${getScoreBadge(selectedReport.score)} border text-sm px-3 py-1`}>
                             Score: {selectedReport.score}/100 — {getScoreLabel(selectedReport.score)}
                         </Badge>
-                        <Button
-                            className="gap-2"
-                            onClick={() => {
-                                setOfferReport(selectedReport)
-                                setOfferForm(prev => ({ ...prev, position: selectedReport.job_title }))
-                                setShowOfferModal(true)
-                            }}
-                        >
-                            <Send className="h-4 w-4" />
-                            Send Offer
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => {
-                                setReports(prev => prev.filter(r => r.id !== selectedReport.id))
-                                setSelectedReport(null)
-                                toast("Candidate Rejected", { description: selectedReport.candidate_name })
-                            }}
-                        >
-                            <XCircle className="h-4 w-4" />
-                            Reject
-                        </Button>
+                        <Badge className={`${getStatusBadge(selectedReport.decision_status || "pending")} border text-sm px-3 py-1`}>
+                            {getStatusLabel(selectedReport.decision_status || "pending")}
+                        </Badge>
+                        {selectedReport.decision_status === "pending" && (
+                            <>
+                                <Button
+                                    className="gap-2"
+                                    onClick={() => {
+                                        setOfferReport(selectedReport)
+                                        setOfferForm({
+                                            position: selectedReport.job_title,
+                                            salary: "8000",
+                                            startDate: "2026-03-15",
+                                            benefits: "Medical, Dental, Vision, EPF, SOCSO",
+                                            contractType: "permanent",
+                                            probation: "3",
+                                            annualLeave: "14"
+                                        })
+                                        setIsEditingOffer(false)
+                                        setOfferLetterId(null)
+                                        setShowOfferModal(true)
+                                    }}
+                                >
+                                    <Send className="h-4 w-4" />
+                                    Send Offer
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                    onClick={async () => {
+                                        await updateDecisionStatus(selectedReport.id, "rejected")
+                                        setReports(prev => prev.map(r => r.id === selectedReport.id ? { ...r, decision_status: "rejected" as DecisionStatus } : r))
+                                        setSelectedReport(prev => prev ? { ...prev, decision_status: "rejected" as DecisionStatus } : prev)
+                                        toast("Candidate Rejected", { description: selectedReport.candidate_name })
+                                    }}
+                                >
+                                    <XCircle className="h-4 w-4" />
+                                    Reject
+                                </Button>
+                            </>
+                        )}
+                        {selectedReport.decision_status === "offer_sent" && (
+                            <Button
+                                className="gap-2 bg-blue-600 hover:bg-blue-700"
+                                onClick={() => handleEditOffer(selectedReport)}
+                            >
+                                <PenLine className="h-4 w-4" />
+                                Edit Offer
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -327,31 +417,31 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
     // ══════ MAIN VIEW ══════
     return (
         <div className="flex h-full">
-            {/* ── Score Sidebar ── */}
+            {/* ── Decision Status Sidebar ── */}
             <aside className="w-56 border-r bg-card/50 shrink-0">
                 <div className="p-4 border-b">
-                    <h3 className="font-semibold text-sm text-muted-foreground">Filter by Score</h3>
+                    <h3 className="font-semibold text-sm text-muted-foreground">Filter by Status</h3>
                 </div>
                 <ScrollArea className="h-[calc(100%-52px)]">
                     <div className="p-2 space-y-0.5">
                         {[
-                            { id: "all", label: "All Reports", icon: Users, color: "text-slate-500", count: reports.length },
-                            { id: "strong", label: "Strong (80+)", icon: CheckCircle, color: "text-emerald-500", count: strongCount },
-                            { id: "average", label: "Average (60–79)", icon: Clock, color: "text-amber-500", count: averageCount },
-                            { id: "below", label: "Below Avg (<60)", icon: AlertCircle, color: "text-red-500", count: belowCount },
+                            { id: "all", label: "All Candidates", icon: Users, color: "text-slate-500", count: reports.length },
+                            { id: "pending", label: "Pending Decision", icon: Clock, color: "text-amber-500", count: pendingCount },
+                            { id: "offer_sent", label: "Offer Sent", icon: Send, color: "text-emerald-500", count: offerSentCount },
+                            { id: "rejected", label: "Rejected", icon: XCircle, color: "text-red-500", count: rejectedCount },
                         ].map(item => {
                             const Icon = item.icon
                             return (
                                 <button
                                     key={item.id}
-                                    onClick={() => setScoreFilter(item.id)}
-                                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${scoreFilter === item.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary/80 text-muted-foreground"}`}
+                                    onClick={() => setStatusFilter(item.id as any)}
+                                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${statusFilter === item.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary/80 text-muted-foreground"}`}
                                 >
                                     <div className="flex items-center gap-2.5">
-                                        <Icon className={`h-4 w-4 ${scoreFilter === item.id ? "text-primary" : item.color}`} />
+                                        <Icon className={`h-4 w-4 ${statusFilter === item.id ? "text-primary" : item.color}`} />
                                         <span>{item.label}</span>
                                     </div>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${scoreFilter === item.id ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusFilter === item.id ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
                                         {item.count}
                                     </span>
                                 </button>
@@ -394,10 +484,10 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                 {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                     {[
-                        { label: "Total Reports", value: reports.length, icon: FileText, color: "text-blue-500", bg: "bg-blue-50" },
-                        { label: "Strong Candidates", value: strongCount, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-50" },
-                        { label: "Average Candidates", value: averageCount, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-                        { label: "Below Average", value: belowCount, icon: AlertCircle, color: "text-red-500", bg: "bg-red-50" },
+                        { label: "Total Candidates", value: reports.length, icon: FileText, color: "text-blue-500", bg: "bg-blue-50" },
+                        { label: "Pending Decision", value: pendingCount, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+                        { label: "Offers Sent", value: offerSentCount, icon: Send, color: "text-emerald-500", bg: "bg-emerald-50" },
+                        { label: "Rejected", value: rejectedCount, icon: XCircle, color: "text-red-500", bg: "bg-red-50" },
                     ].map(stat => (
                         <Card key={stat.label}>
                             <CardContent className="p-4 flex items-center gap-4">
@@ -432,19 +522,66 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Candidate</th>
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Position</th>
                                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date</th>
-                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Score</th>
+                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                                                <div className="flex items-center gap-2">
+                                                    {/* Score column header with inline filter + sort */}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <button className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+                                                                Score
+                                                                <ChevronDown className="h-3.5 w-3.5" />
+                                                                {scoreFilter !== "all" && (
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                                                )}
+                                                            </button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="start" className="w-44">
+                                                            <DropdownMenuLabel className="text-xs">Filter by Score</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            {[
+                                                                { id: "all", label: "All Scores" },
+                                                                { id: "strong", label: "Strong (80+)" },
+                                                                { id: "average", label: "Average (60–79)" },
+                                                                { id: "below", label: "Below Avg (<60)" },
+                                                            ].map(item => (
+                                                                <DropdownMenuItem
+                                                                    key={item.id}
+                                                                    onClick={() => setScoreFilter(item.id)}
+                                                                    className={scoreFilter === item.id ? "bg-primary/10 font-medium" : ""}
+                                                                >
+                                                                    {scoreFilter === item.id && <CheckCircle className="h-3.5 w-3.5 mr-2 text-primary" />}
+                                                                    {scoreFilter !== item.id && <span className="w-[22px]" />}
+                                                                    {item.label}
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+
+                                                    {/* Sort toggle */}
+                                                    <button
+                                                        onClick={cycleSortOrder}
+                                                        className="p-1 rounded hover:bg-secondary transition-colors"
+                                                        title={scoreSortOrder === "none" ? "Sort by score" : scoreSortOrder === "desc" ? "Sorted: High → Low" : "Sorted: Low → High"}
+                                                    >
+                                                        {scoreSortOrder === "none" && <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                        {scoreSortOrder === "desc" && <ArrowDown className="h-3.5 w-3.5 text-primary" />}
+                                                        {scoreSortOrder === "asc" && <ArrowUp className="h-3.5 w-3.5 text-primary" />}
+                                                    </button>
+                                                </div>
+                                            </th>
+                                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                                             <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredReports.length === 0 ? (
+                                        {sortedReports.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                                                <td colSpan={6} className="text-center py-12 text-muted-foreground">
                                                     {reports.length === 0 ? "No resume reports yet" : "No reports match your filters"}
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredReports.map(report => (
+                                            sortedReports.map(report => (
                                                 <tr
                                                     key={report.id}
                                                     className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
@@ -478,6 +615,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                         </Badge>
                                                     </td>
                                                     <td className="py-3 px-4">
+                                                        <Badge className={`${getStatusBadge(report.decision_status || "pending")} border text-xs`}>
+                                                            {getStatusLabel(report.decision_status || "pending")}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
                                                         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                                                             <Button
                                                                 variant="outline"
@@ -502,31 +644,57 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                                                 )}
                                                                 Interview Report
                                                             </Button>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="gap-1.5 text-xs h-8"
-                                                                onClick={() => {
-                                                                    setOfferReport(report)
-                                                                    setOfferForm(prev => ({ ...prev, position: report.job_title }))
-                                                                    setShowOfferModal(true)
-                                                                }}
-                                                            >
-                                                                <Send className="h-3.5 w-3.5" />
-                                                                Send Offer
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="gap-1.5 text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                                onClick={() => {
-                                                                    setReports(prev => prev.filter(r => r.id !== report.id))
-                                                                    toast("Candidate Rejected", { description: report.candidate_name })
-                                                                }}
-                                                            >
-                                                                <XCircle className="h-3.5 w-3.5" />
-                                                                Reject
-                                                            </Button>
+                                                            {report.decision_status === "pending" && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="gap-1.5 text-xs h-8"
+                                                                        onClick={() => {
+                                                                            setOfferReport(report)
+                                                                            setOfferForm({
+                                                                                position: report.job_title,
+                                                                                salary: "8000",
+                                                                                startDate: "2026-03-15",
+                                                                                benefits: "Medical, Dental, Vision, EPF, SOCSO",
+                                                                                contractType: "permanent",
+                                                                                probation: "3",
+                                                                                annualLeave: "14"
+                                                                            })
+                                                                            setIsEditingOffer(false)
+                                                                            setOfferLetterId(null)
+                                                                            setShowOfferModal(true)
+                                                                        }}
+                                                                    >
+                                                                        <Send className="h-3.5 w-3.5" />
+                                                                        Send Offer
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="gap-1.5 text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                                                        onClick={async () => {
+                                                                            await updateDecisionStatus(report.id, "rejected")
+                                                                            setReports(prev => prev.map(r => r.id === report.id ? { ...r, decision_status: "rejected" as DecisionStatus } : r))
+                                                                            toast("Candidate Rejected", { description: report.candidate_name })
+                                                                        }}
+                                                                    >
+                                                                        <XCircle className="h-3.5 w-3.5" />
+                                                                        Reject
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                            {report.decision_status === "offer_sent" && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="gap-1.5 text-xs h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                                                    onClick={() => handleEditOffer(report)}
+                                                                >
+                                                                    <PenLine className="h-3.5 w-3.5" />
+                                                                    Edit Offer
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -560,46 +728,106 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
         </div>
     )
 
-    // ── Send Offer handler ──
-    function handleSendOffer() {
+    // ── Edit Offer handler ──
+    async function handleEditOffer(report: ResumeReport) {
+        setOfferReport(report)
+        try {
+            const q = query(collection(db, "offer_letters"), where("resume_report_id", "==", report.id), limit(1))
+            const snapshot = await getDocs(q)
+            if (!snapshot.empty) {
+                const docSnap = snapshot.docs[0]
+                const data = docSnap.data()
+                setOfferForm({
+                    position: data.position || report.job_title,
+                    salary: data.salary || "8000",
+                    startDate: data.start_date || "2026-03-15",
+                    benefits: data.benefits || "Medical, Dental, Vision, EPF, SOCSO",
+                    contractType: data.contract_type || "permanent",
+                    probation: data.probation || "3",
+                    annualLeave: data.annual_leave || "14",
+                })
+                setOfferLetterId(docSnap.id)
+                setIsEditingOffer(true)
+                setShowOfferModal(true)
+            } else {
+                toast.error("Could not find the sent offer letter.")
+            }
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to load offer details.")
+        }
+    }
+
+    // ── Send/Update Offer handler ──
+    async function handleSendOffer() {
         if (!offerReport) return
 
-        // Store in localStorage for employee-side popup
-        const events = JSON.parse(localStorage.getItem('global_events') || '{}')
-        localStorage.setItem('global_events', JSON.stringify({
-            ...events,
-            offer_letter_received: true,
-            offer_letter_viewed: false,
-            offer_details: {
-                candidateName: offerReport.candidate_name,
-                position: offerForm.position,
-                salary: offerForm.salary,
-                startDate: offerForm.startDate,
-                benefits: offerForm.benefits,
-                contractType: offerForm.contractType,
-                probation: offerForm.probation,
-                sentAt: new Date().toISOString(),
-            }
-        }))
+        const payload = {
+            candidate_name: offerReport.candidate_name,
+            candidate_email: offerReport.candidate_email || "",
+            position: offerForm.position,
+            company_name: offerReport.company_name,
+            salary: offerForm.salary,
+            start_date: offerForm.startDate,
+            benefits: offerForm.benefits,
+            contract_type: offerForm.contractType,
+            probation: offerForm.probation,
+            annual_leave: offerForm.annualLeave,
+            status: "pending",
+            sent_at: new Date().toISOString(),
+            resume_report_id: offerReport.id,
+        }
 
-        const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
-        notifs.push({
-            id: Math.random().toString(36).substr(2, 9),
-            type: 'document',
-            employee: offerReport.candidate_name,
-            title: `Offer Letter: ${offerForm.position}`,
-            message: `You have received an offer letter for the ${offerForm.position} position. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
-            timestamp: new Date().toISOString(),
-            read: false
-        })
-        localStorage.setItem('notifications', JSON.stringify(notifs))
+        try {
+            if (isEditingOffer && offerLetterId) {
+                // Update existing offer
+                await updateDoc(doc(db, "offer_letters", offerLetterId), payload)
+
+                // Push notification
+                const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
+                notifs.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'offer_updated',
+                    employee: offerReport.candidate_name,
+                    title: `Offer Letter Updated: ${offerForm.position}`,
+                    message: `Your offer letter for the ${offerForm.position} position at ${offerReport.company_name} has been updated.`,
+                    timestamp: new Date().toISOString(),
+                    read: false
+                })
+                localStorage.setItem('notifications', JSON.stringify(notifs))
+
+                toast.success("Offer Updated!", { description: `Updated offer for ${offerReport.candidate_name}` })
+            } else {
+                // Send new offer
+                await updateDecisionStatus(offerReport.id, "offer_sent")
+                setReports(prev => prev.map(r => r.id === offerReport.id ? { ...r, decision_status: "offer_sent" as DecisionStatus } : r))
+
+                await addDoc(collection(db, "offer_letters"), payload)
+
+                // Push notification
+                const notifs = JSON.parse(localStorage.getItem('notifications') || '[]')
+                notifs.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: 'offer_letter',
+                    employee: offerReport.candidate_name,
+                    title: `Offer Letter: ${offerForm.position}`,
+                    message: `You have received an offer letter for the ${offerForm.position} position at ${offerReport.company_name}. Salary: RM ${Number(offerForm.salary).toLocaleString()}/month.`,
+                    timestamp: new Date().toISOString(),
+                    read: false
+                })
+                localStorage.setItem('notifications', JSON.stringify(notifs))
+
+                toast.success("Offer Letter Sent!", { description: `Offer sent to ${offerReport.candidate_name} for ${offerForm.position}` })
+            }
+        } catch (err) {
+            console.error("Failed to save offer letter:", err)
+            toast.error("Failed to save offer letter")
+            return
+        }
 
         setShowOfferModal(false)
         setShowPreview(false)
         setOfferReport(null)
-        toast.success("Offer Letter Sent!", {
-            description: `Offer sent to ${offerReport.candidate_name} for ${offerForm.position}`
-        })
     }
 
     // ── Offer Modal ──
@@ -609,11 +837,11 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Send className="h-5 w-5 text-primary" />
-                            Send Offer Letter
+                            {isEditingOffer ? <PenLine className="h-5 w-5 text-blue-600" /> : <Send className="h-5 w-5 text-primary" />}
+                            {isEditingOffer ? "Edit Offer Letter" : "Send Offer Letter"}
                         </DialogTitle>
                         <DialogDescription>
-                            Prepare and send an offer letter to {offerReport?.candidate_name}
+                            {isEditingOffer ? `Update the offer letter for ${offerReport?.candidate_name}` : `Prepare and send an offer letter to ${offerReport?.candidate_name}`}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -670,6 +898,15 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                <div className="space-y-2">
+                                    <Label>Annual Leave (Days)</Label>
+                                    <Input
+                                        type="number"
+                                        value={offerForm.annualLeave}
+                                        onChange={e => setOfferForm(p => ({ ...p, annualLeave: e.target.value }))}
+                                        placeholder="e.g. 14"
+                                    />
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <Label>Benefits Package</Label>
@@ -723,6 +960,8 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                             <span className="font-medium capitalize">{offerForm.contractType.replace("_", " ")}</span>
                                             <span className="text-slate-500">Probation:</span>
                                             <span className="font-medium">{offerForm.probation === "0" ? "None" : offerForm.probation + " months"}</span>
+                                            <span className="text-slate-500">Annual Leave:</span>
+                                            <span className="font-medium">{offerForm.annualLeave} days</span>
                                         </div>
                                     </div>
                                     <div>
@@ -750,8 +989,8 @@ export function HrInterviewCenter({ onNavigate, currentUser }: { onNavigate?: (p
                                     Edit Details
                                 </Button>
                                 <Button onClick={handleSendOffer} className="gap-2 bg-green-600 hover:bg-green-700">
-                                    <Send className="h-4 w-4" />
-                                    Send Offer Letter
+                                    {isEditingOffer ? <PenLine className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                                    {isEditingOffer ? "Update Offer Letter" : "Send Offer Letter"}
                                 </Button>
                             </DialogFooter>
                         </div>

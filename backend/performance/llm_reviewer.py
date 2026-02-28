@@ -6,23 +6,19 @@ Includes retry logic for transient API errors (529 overloaded).
 
 import json
 import time
-import anthropic
+import requests
 import os
 
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 2  # seconds
 
-
-def get_claude_client():
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not set in environment")
-    return anthropic.Anthropic(api_key=api_key)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3")
 
 
-def review_employee(client: anthropic.Anthropic, row: dict, flag_reasons: list[str]) -> dict:
+def review_employee(row: dict, flag_reasons: list[str]) -> dict:
     """
-    Ask Claude to review one flagged employee and return structured assessment.
+    Ask Ollama (Gemma) to review one flagged employee and return structured assessment.
     """
     quality_direction = "Improving" if row["quality_trend"] > 0 else "Declining"
 
@@ -57,13 +53,22 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            message = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=600,
-                messages=[{"role": "user", "content": prompt}],
+            resp = requests.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.0,
+                        "num_predict": 600,
+                    }
+                },
+                timeout=120,
             )
+            resp.raise_for_status()
 
-            response_text = message.content[0].text.strip()
+            response_text = resp.json()["response"].strip()
 
             # Handle potential markdown code blocks
             if response_text.startswith("```"):
@@ -71,20 +76,22 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
                 if response_text.endswith("```"):
                     response_text = response_text[:-3].strip()
 
-            return json.loads(response_text)
+            # Also sometimes Ollama includes trailing backticks without a newline
+            if "```" in response_text:
+                response_text = response_text.replace("```json", "").replace("```", "").strip()
 
-        except anthropic.APIStatusError as e:
+            return json.loads(response_text)
+        except requests.exceptions.RequestException as e:
             last_error = e
-            if e.status_code in (429, 529) and attempt < MAX_RETRIES:
+            if attempt < MAX_RETRIES:
                 delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-                print(f"   API overloaded for {row['name']}, retrying in {delay}s (attempt {attempt}/{MAX_RETRIES})...")
+                print(f"   API connectivity issue for {row['name']}, retrying in {delay}s (attempt {attempt}/{MAX_RETRIES})...")
                 time.sleep(delay)
                 continue
             break
         except Exception as e:
             last_error = e
             break
-
     print(f"   LLM review failed for {row['name']}: {last_error}")
     return {
         "final_category": row["category"],

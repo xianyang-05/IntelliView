@@ -56,8 +56,8 @@ interface Message {
 }
 
 // ── Constants ──
-const EMPLOYEE_USER_ID = "c9422b3d-9b24-4a45-8e6f-dc578d4a28e7" // Alex Chan
-const HR_USER_ID = "8b48b8b0-c0c8-46e8-a940-325df35942da" // Rachel Lim
+const EMPLOYEE_USER_ID = "kKryYn2e28aWeDIdQd8lXvIuN1W2" // Alex Chan
+const HR_USER_ID = "IvQlCvZUVlRhWuRJ5kjmQEBpMFT2" // Rachel Lim
 const MANAGER_USER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890" // David Wong
 
 // ── Role display helpers ──
@@ -65,8 +65,9 @@ const ROLE_LABELS: Record<string, string> = {
     hr_admin: "HR Team",
     manager: "Managers",
     employee: "Employees",
+    candidate: "Candidates",
 }
-const ROLE_ORDER = ["hr_admin", "manager", "employee"]
+const ROLE_ORDER = ["hr_admin", "manager", "employee", "candidate"]
 const ROLE_AVATAR_COLORS: Record<string, string> = {
     hr_admin: "from-purple-100 to-violet-100 text-purple-700",
     manager: "from-amber-100 to-orange-100 text-amber-700",
@@ -76,8 +77,10 @@ const ROLE_AVATAR_COLORS: Record<string, string> = {
 // ═══════════════════════════════════════
 // CHAT WIDGET COMPONENT
 // ═══════════════════════════════════════
-export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOpenHandled }: {
+export function ChatWidget({ isHrMode, isCandidateMode = false, currentUserIdOverride, autoOpenUserId, autoOpenMessage, onAutoOpenHandled }: {
     isHrMode: boolean
+    isCandidateMode?: boolean
+    currentUserIdOverride?: string | null
     autoOpenUserId?: string | null
     autoOpenMessage?: string | null
     onAutoOpenHandled?: () => void
@@ -97,7 +100,8 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const unsubMessagesRef = useRef<(() => void) | null>(null)
 
-    const currentUserId = isHrMode ? HR_USER_ID : EMPLOYEE_USER_ID
+    const currentUserId = currentUserIdOverride || (isHrMode ? HR_USER_ID : EMPLOYEE_USER_ID)
+    console.log("ChatWidget mounted with currentUserId:", currentUserId, "override:", currentUserIdOverride);
 
     // ── Auto-open from external trigger ──
     useEffect(() => {
@@ -178,7 +182,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
 
         for (const c of convos) {
             const otherId = c.participant_1 === currentUserId ? c.participant_2 : c.participant_1
-            const matchedContact = contacts.find((u) => u.id === otherId)
+            let matchedContact = contacts.find((u) => u.id === otherId)
 
             // Get last message
             const msgQ = query(
@@ -202,6 +206,39 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
             const unread = unreadSnap.size
 
             totalUnreadCount += unread
+
+            if (!matchedContact) {
+                if (otherId === "demo-candidate-001") {
+                    matchedContact = {
+                        id: otherId,
+                        email: "candidate@zerohr.com",
+                        full_name: "Jordan Lee (Candidate)",
+                        role: "candidate",
+                        job_title: null,
+                        department: null,
+                        avatar_url: null,
+                    }
+                } else if (otherId.includes("candidate")) {
+                    matchedContact = {
+                        id: otherId,
+                        email: "",
+                        full_name: "Candidate",
+                        role: "candidate",
+                        job_title: null,
+                        department: null,
+                        avatar_url: null,
+                    }
+                } else {
+                    try {
+                        const userDoc = await getDoc(doc(db, "users", otherId))
+                        if (userDoc.exists()) {
+                            matchedContact = { id: userDoc.id, ...userDoc.data() } as ChatUser
+                        }
+                    } catch (e) {}
+                }
+            }
+            console.log("Resolving chat window. OtherId:", otherId, "MatchedContact:", matchedContact);
+
 
             enriched.push({
                 ...c,
@@ -376,11 +413,22 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
         name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
 
     // ── Filtered contacts ──
-    const filteredContacts = contacts.filter((c) =>
-        c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.department || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.job_title || "").toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    const filteredContacts = contacts.filter((c) => {
+        const matchesSearch = c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.department || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.job_title || "").toLowerCase().includes(searchQuery.toLowerCase())
+
+        let matchesRole = true
+        if (isCandidateMode) {
+            matchesRole = false
+        } else if (isHrMode) {
+            matchesRole = c.role === "employee" || c.role === "candidate"
+        } else {
+            matchesRole = c.role === "hr_admin"
+        }
+
+        return matchesSearch && matchesRole
+    })
 
     // ── Handle popup click ──
     const handlePopupClick = async () => {
@@ -465,17 +513,19 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                             </div>
 
                             {/* Search */}
-                            <div className="px-3 py-2 border-b">
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search contacts..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-9 h-9 text-sm bg-secondary/50"
-                                    />
+                            {!isCandidateMode && (
+                                <div className="px-3 py-2 border-b">
+                                    <div className="relative">
+                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search contacts..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="pl-9 h-9 text-sm bg-secondary/50"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Recent Conversations */}
                             <ScrollArea className="flex-1">
@@ -524,7 +574,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                                 )}
 
                                 {/* All Contacts — Grouped by Role */}
-                                {ROLE_ORDER.map((role) => {
+                                {!isCandidateMode && ROLE_ORDER.map((role) => {
                                     const roleContacts = filteredContacts.filter((c) => c.role === role)
                                     if (roleContacts.length === 0) return null
                                     return (
@@ -555,7 +605,7 @@ export function ChatWidget({ isHrMode, autoOpenUserId, autoOpenMessage, onAutoOp
                                         </div>
                                     )
                                 })}
-                                {filteredContacts.length === 0 && (
+                                {!isCandidateMode && filteredContacts.length === 0 && (
                                     <p className="text-center text-sm text-muted-foreground py-8">No contacts found</p>
                                 )}
                             </ScrollArea>

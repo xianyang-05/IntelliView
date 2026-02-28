@@ -130,6 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (token.role) {
                 session.user.role = token.role as string
                 session.user.companyId = token.companyId as string
+                session.user.id = token.id as string
             }
             return session
         },
@@ -137,6 +138,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             if (user) {
                 token.role = user.role
                 token.companyId = user.companyId
+                token.id = user.id
             }
             return token
         }
