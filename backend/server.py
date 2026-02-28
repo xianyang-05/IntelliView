@@ -1573,31 +1573,100 @@ async def api_generate_report(request: GenerateReportRequest):
 
 @app.get("/api/report/{report_id}/json")
 async def api_get_report_json(report_id: str):
-    """Retrieve a generated interview report as JSON."""
-    try:
-        # Try Firestore first
-        doc = firestore_db.collection("interview_reports").document(report_id).get()
-        if doc.exists:
-            data = doc.to_dict()
-            return data.get("json_data", data)
-
-        # Fallback: grab the most recent interview report as a graceful fallback for the demo
-        docs = firestore_db.collection("interview_reports").order_by("generated_at", direction=firestore.Query.DESCENDING).limit(1).stream()
-        for d in docs:
-            data = d.to_dict()
-            return data.get("json_data", data)
-
-        # Fallback: try loading from local file
-        reports_dir = os.path.join(os.path.dirname(__file__), "reports")
-        json_path = os.path.join(reports_dir, f"{report_id}.json")
-        if os.path.isfile(json_path):
-            with open(json_path, "r") as f:
-                return json.load(f)
-
-        return JSONResponse(status_code=404, content={"detail": "Report not found"})
-    except Exception as e:
-        print(f"Report fetch error: {e}")
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+    """Return a mock interview report (FAIL) for demo purposes."""
+    return {
+        "report_id": report_id,
+        "generated_at": "2026-02-28T15:00:00Z",
+        "candidate": {
+            "session_id": report_id,
+            "job_title": "Software Engineer",
+            "interview_date": "Feb 28, 2026",
+            "interview_duration_minutes": 25,
+        },
+        "scores": {
+            "final_score": 42,
+            "decision": "FAIL",
+            "recommendation": "Candidate does not meet the minimum requirements for this role. Performance was below expectations across multiple evaluation areas.",
+            "breakdown": {
+                "qa": {"raw": 35, "weight": 40, "weighted": 14.0},
+                "coding": {"raw": 40, "weight": 30, "weighted": 12.0},
+                "integrity": {"raw": 55, "weight": 20, "weighted": 11.0},
+                "communication": {"raw": 50, "weight": 10, "weighted": 5.0},
+            },
+        },
+        "executive_summary": (
+            "The candidate demonstrated significant gaps in core technical knowledge and problem-solving ability during the interview. "
+            "Their responses to behavioral and technical questions lacked depth and specificity. "
+            "The coding assessment revealed difficulties with fundamental algorithms, and multiple integrity flags were raised during the session. "
+            "Overall, the candidate is not recommended for advancement to the next stage of the hiring process."
+        ),
+        "qa_performance": {
+            "score": 35,
+            "strengths": [
+                "Showed enthusiasm for learning new technologies",
+            ],
+            "weaknesses": [
+                "Could not explain core data structure concepts clearly",
+                "Responses lacked concrete examples from past experience",
+                "Unable to discuss system design trade-offs",
+                "Struggled with follow-up questions requiring deeper technical knowledge",
+            ],
+            "per_question": [
+                {
+                    "question": "Can you explain the difference between a stack and a queue, and when you would use each?",
+                    "answer_summary": "Candidate gave a vague explanation, confusing FIFO and LIFO ordering.",
+                    "score": 30,
+                    "feedback": "Fundamental data structure knowledge is expected for this role.",
+                },
+                {
+                    "question": "Describe a challenging project you worked on and how you approached debugging a difficult issue.",
+                    "answer_summary": "Candidate mentioned a school project but could not provide details on the debugging process.",
+                    "score": 35,
+                    "feedback": "Answer lacked depth. Expected specific methodologies or tools used.",
+                },
+                {
+                    "question": "How would you design a URL shortening service?",
+                    "answer_summary": "Candidate suggested using a database but did not discuss hashing, scalability, or trade-offs.",
+                    "score": 25,
+                    "feedback": "System design answer was incomplete. No mention of load balancing, caching, or collision handling.",
+                },
+                {
+                    "question": "What is the time complexity of common sorting algorithms?",
+                    "answer_summary": "Only mentioned bubble sort as O(n²). Could not explain merge sort or quicksort.",
+                    "score": 40,
+                    "feedback": "Partial knowledge. Expected familiarity with O(n log n) algorithms.",
+                },
+            ],
+        },
+        "coding_assessment": {
+            "combined_score": 40,
+            "correctness_score": 35,
+            "quality_score": 45,
+            "time_complexity": "O(n²)",
+            "space_complexity": "O(n)",
+            "feedback": "Solution used a brute-force nested loop approach. Did not handle edge cases (empty array, single element). Code lacked comments and had inconsistent naming conventions.",
+        },
+        "integrity_report": {
+            "score": 55,
+            "violations_count": 5,
+            "critical_flags": [
+                "Candidate looked away from screen repeatedly (4 occurrences)",
+                "Tab switch detected during coding assessment",
+            ],
+            "breakdown": {
+                "browser_deductions": 15,
+                "mediapipe_deductions": 20,
+                "vision_deductions": 10,
+            },
+        },
+        "communication_skills": {
+            "score": 50,
+            "clarity": 45,
+            "confidence": 40,
+            "professionalism": 65,
+            "feedback": "Candidate appeared nervous and frequently paused mid-sentence. Answers were often unclear and required multiple follow-up prompts. Maintained a polite demeanor throughout.",
+        },
+    }
 
 # ═══════════════════════════════════════════════════
 # STARTUP
