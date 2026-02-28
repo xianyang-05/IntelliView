@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Loader2, DollarSign, Users, Briefcase, TrendingUp, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react"
+import { db } from "@/lib/firebase"
+import { collection, doc, writeBatch } from "firebase/firestore"
 
 const PREDEFINED_ROLES = ["Engineer", "Accountant", "HR", "Marketing", "Sales", "Operations"]
 const INDUSTRIES = ["Software Product", "Agency/Services", "E-commerce", "Fintech", "Healthcare", "Other"]
@@ -112,13 +114,19 @@ export function HrManpowerPlanning({ currentUser }: { currentUser?: any }) {
         return
       }
 
-      const response = await fetch("/api/hr/jobs/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobs: jobsToPost })
+      const batch = writeBatch(db)
+      const jobsCollection = collection(db, "job_listings")
+      
+      jobsToPost.forEach(jobData => {
+        const docRef = doc(jobsCollection)
+        batch.set(docRef, {
+          ...jobData,
+          posted_at: new Date().toISOString(),
+          is_active: true
+        })
       })
 
-      if (!response.ok) throw new Error("Failed to post jobs")
+      await batch.commit()
       
       setIsPostModalOpen(false)
       setPostSuccess(true)

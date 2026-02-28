@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Briefcase, MapPin, DollarSign, Clock } from "lucide-react"
+import { db } from "@/lib/firebase"
+import { collection, query, where, getDocs, addDoc } from "firebase/firestore"
 
 export function HrJobPostings({ companyCode, companyName }: { companyCode?: string, companyName?: string }) {
   const [jobs, setJobs] = useState<any[]>([])
@@ -28,14 +30,12 @@ export function HrJobPostings({ companyCode, companyName }: { companyCode?: stri
   const fetchJobs = async () => {
     if (!companyCode) return
     setIsLoading(true)
+    setError(null)
     try {
-      const response = await fetch(`/api/hr/jobs?company_code=${companyCode}`)
-      const data = await response.json()
-      if (response.ok) {
-        setJobs(data.jobs)
-      } else {
-        throw new Error(data.detail || "Failed to fetch jobs")
-      }
+      const q = query(collection(db, "job_listings"), where("company_code", "==", companyCode))
+      const querySnapshot = await getDocs(q)
+      const fetchedJobs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      setJobs(fetchedJobs)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -66,17 +66,12 @@ export function HrJobPostings({ companyCode, companyName }: { companyCode?: stri
         type,
         salary_range: salaryRange,
         description,
-        requirements
+        requirements,
+        posted_at: new Date().toISOString(),
+        is_active: true
       }
 
-      const response = await fetch("/api/hr/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || "Failed to create job")
+      await addDoc(collection(db, "job_listings"), payload)
       
       setIsModalOpen(false)
       setTitle("")
